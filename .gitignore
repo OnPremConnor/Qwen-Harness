@@ -13,11 +13,7 @@ dist/
 .DS_Store
 *.swp
 
-# Local runtime data and logs are not source code.
-data/
-*.db
-*.db-*
-*.sqlite*
+# Local logs are not source code.
 *.log
 
 # Local configuration may contain credentials.

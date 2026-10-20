@@ -254,6 +254,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "pydantic" },
     { name = "uvicorn" },
 ]
 
@@ -261,6 +262,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.150.0" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.14.1" },
     { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 

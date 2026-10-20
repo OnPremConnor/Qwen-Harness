@@ -1,30 +1,39 @@
 # Qwen harness
 
-A small Python learning project for sending requests to a locally served Qwen model, inspecting the HTTP response, and saving selected run data in SQLite. The model server runs separately from this project.
+A small backend for learning how an HTTP request reaches a locally served Qwen model. The vLLM model server runs separately in Docker. A dashboard can be added later under `frontend/`; there is no frontend code yet.
 
-The harness is the Python code around the model. FastAPI exposes one way to call it; the terminal command is another.
+## Project map
 
-## Current state
+| Location | Job |
+|---|---|
+| `backend/` | Python project, dependency lockfile, and its own `.venv/` |
+| `backend/src/qwen_harness/settings.py` | Fixed local vLLM address, model name, and HTTP timeout |
+| `backend/src/qwen_harness/api/main.py` | Creates the FastAPI application and attaches its routes |
+| `backend/src/qwen_harness/api/routes/chat.py` | Defines the incoming `POST /chat` route |
+| `backend/src/qwen_harness/api/schemas/chat.py` | Defines the required incoming `message` field |
+| `backend/src/qwen_harness/harness/chat.py` | Builds vLLM's chat body from that message and reads the reply |
+| `backend/src/qwen_harness/harness/vllm_client.py` | Sends the outgoing HTTP request with HTTPX |
+| `frontend/` (future) | Dashboard code; it will call this backend over HTTP |
 
-- `qwen-harness` is a terminal command that sends a fixed chat request to the local vLLM server, measures the completed request, and saves a compact run record.
-- `qwen_harness.api` defines a FastAPI `/chat` route. It accepts a JSON object with a required text `message` field, builds vLLM's chat request, and returns vLLM's full JSON reply. Each call sends only the current user message; this route does not yet keep chat history or save a run record.
-- The SQLite database is created under `data/` when used. That directory is local runtime data and is excluded from Git.
+Request flow: caller → API route → harness chat function → vLLM client → vLLM server. The reply travels back through those same Python functions. The current route sends only the caller's latest message and returns vLLM's full JSON reply body. It does not store conversation history or run records.
 
-## Code map
+## Run the backend
 
-- `src/qwen_harness/cli.py`: terminal entry point.
-- `src/qwen_harness/api.py`: incoming HTTP routes.
-- `src/qwen_harness/vllm_client.py`: outgoing HTTP request to vLLM.
-- `src/qwen_harness/records.py`: selects fields for the compact run record.
-- `src/qwen_harness/db/`: opens SQLite, defines the table, and saves or reads run records.
+From the repository root, enter `backend/` and install its locked Python dependencies:
 
-## Current paths through the code
+```bash
+cd backend
+uv sync
+```
 
-- Postman or a later dashboard → `api.py` validates the incoming message → `vllm_client.py` sends a new HTTP request to vLLM → `api.py` returns vLLM's JSON body.
-- `qwen-harness` in a terminal → `cli.py` builds a fixed request → `vllm_client.py` sends it → `records.py` selects run facts → `db/` saves them.
+`cd` selects the Python project folder. `uv sync` creates or updates `backend/.venv/` from `backend/pyproject.toml` and `backend/uv.lock`. It does not install or start vLLM.
 
-The vLLM URL is a fixed value in `vllm_client.py` for this local setup. It is one chosen configuration value, not a special Python or HTTP name.
+With the separate vLLM server already running, start the FastAPI server:
 
-## Project environment
+```bash
+uv run uvicorn qwen_harness.api.main:app --host 127.0.0.1 --port 8001
+```
 
-Run `uv sync` in the project root to install the dependencies from `pyproject.toml` and `uv.lock`. The vLLM server and its model files are separate and are not part of this repository.
+`uv run` uses this backend's environment. Uvicorn imports the `app` object from `qwen_harness.api.main`. The host and port make this API reachable only on this machine at `http://127.0.0.1:8001`. Stopping Uvicorn stops this API process, not the vLLM container.
+
+In Postman, send `POST http://127.0.0.1:8001/chat` with a JSON body such as `{"message": "Say hello"}`. FastAPI validates that body, the harness calls vLLM at the fixed address in `settings.py`, and the route returns vLLM's JSON body.
