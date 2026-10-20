@@ -1,12 +1,11 @@
 import sqlite3
 
 
-# The colon hints at the parameter type; -> None hints at no return value.
 def create_model_runs_table(connection: sqlite3.Connection) -> None:
-    """Create the model_runs table using the Connection passed by open_database()."""
-    # connection.py passed its open Connection object into this parameter.
+    """Ensure the model_runs table exists on the passed SQLite connection."""
+    # open_database() passes its open Connection object into this parameter.
     cursor = connection.cursor()
-    # This cursor sends the CREATE TABLE statement to SQLite through its connection.
+    # IF NOT EXISTS makes repeated calls safe when the table already exists.
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS model_runs (

@@ -4,11 +4,11 @@ from qwen_harness.db.connection import open_database
 
 
 def save_run_record(run_record: dict) -> None:
-    """Save the run_record dictionary from cli.py as a database row."""
-    # cli.py passes in the dictionary returned by make_run_record().
-    connection = open_database()  # A fresh Connection object for this call.
+    """Insert the selected run facts as one row in the model_runs table."""
+    # open_database() returns an open SQLite Connection; this function closes it.
+    connection = open_database()
     try:
-        cursor = connection.cursor()  # This cursor runs SQL on that connection.
+        cursor = connection.cursor()  # Run SQL through this connection.
         cursor.execute(
             """
             INSERT INTO model_runs (
@@ -19,21 +19,21 @@ def save_run_record(run_record: dict) -> None:
                 :elapsed_seconds, :prompt_tokens, :completion_tokens, :finish_reason
             )
             """,
-            run_record,  # Each :name comes from the matching dictionary key.
+            run_record,  # SQLite binds each :name to this dictionary's matching key.
         )
-        connection.commit()  # Make the inserted row persist after Python exits.
+        connection.commit()  # Keep the inserted row after this process exits.
     finally:
-        connection.close()  # Also runs if execute() or commit() fails.
+        connection.close()  # Runs even if the insert or commit raises an error.
 
 
 def read_run_records() -> list[dict]:
-    """Return saved model runs as dictionaries for a later dashboard API."""
-    connection = open_database()  # A separate Connection object for this read.
-    connection.row_factory = sqlite3.Row  # Rows now support column-name lookup.
+    """Read saved model runs as dictionaries for the future dashboard route."""
+    connection = open_database()  # This read gets its own open Connection object.
+    connection.row_factory = sqlite3.Row  # Let each row expose its column names.
     try:
         cursor = connection.cursor()
         cursor.execute("SELECT * FROM model_runs ORDER BY recorded_at DESC")
-        rows = cursor.fetchall()  # Fetch the query's rows before closing.
-        return [dict(row) for row in rows]  # Convert SQLite rows to plain Python dictionaries.
+        rows = cursor.fetchall()  # Load the rows before closing the connection.
+        return [dict(row) for row in rows]  # Convert SQLite rows to Python dictionaries.
     finally:
-        connection.close()  # Even returning from try runs this cleanup first.
+        connection.close()  # Also runs when the read fails or the function returns.
