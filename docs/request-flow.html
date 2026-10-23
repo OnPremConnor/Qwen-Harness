@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>One chat request through the stack</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: #09111a; color: #e9f2f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(circle at top right, #17312d, transparent 38%), #09111a; }
+    button { font: inherit; cursor: pointer; }
+    .wrap { max-width: 1320px; margin: auto; padding: 30px 24px 90px; }
+    .top { display: flex; align-items: start; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
+    h1 { margin: 4px 0 10px; font-size: clamp(28px, 4vw, 46px); letter-spacing: -.05em; line-height: 1.08; }
+    .eyebrow { margin: 0; color: #79d8bb; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    .intro { max-width: 760px; margin: 0; color: #9eb3b9; font-size: 15px; line-height: 1.6; }
+    .back { color: #9fefcf; text-decoration: none; white-space: nowrap; font-size: 13px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 24px 0; }
+    .controls button { border: 1px solid #42675e; border-radius: 9px; padding: 9px 13px; background: #16342d; color: #d5ffeb; font-size: 13px; font-weight: 650; }
+    .controls button:hover, .controls button:focus-visible { background: #255345; }
+    .controls button:disabled { opacity: .4; cursor: default; }
+    .controls .selected { background: #a6ecc7; color: #0a2418; }
+    .separator { width: 1px; height: 30px; margin: 0 6px; background: #34504e; }
+    .progress { margin-left: auto; color: #a4bdc0; font-size: 12px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 26px; align-items: start; }
+    .diagram { position: relative; padding: 2px 0 0 34px; }
+    .diagram::before { content: ''; position: absolute; top: 24px; bottom: 30px; left: 16px; width: 2px; background: linear-gradient(#529e82, #4f7598, #529e82); }
+    .node { position: relative; width: 100%; margin: 0 0 13px; border: 1px solid #28434a; border-radius: 14px; background: #101f29; color: #e9f2f1; padding: 14px 17px; text-align: left; transition: border-color .2s, background .2s, transform .2s; }
+    .node::before { content: ''; position: absolute; left: -25px; top: 21px; width: 13px; height: 13px; border: 2px solid #4f8d7c; border-radius: 50%; background: #0a1721; z-index: 1; }
+    .node::after { content: '↓'; position: absolute; left: -25px; bottom: -20px; width: 13px; color: #629784; font-size: 14px; text-align: center; }
+    .node:last-child::after { display: none; }
+    .node:hover { border-color: #6fb39c; }
+    .node.active { border-color: #a6ecc7; background: #17372f; transform: translateX(5px); box-shadow: 0 0 0 2px #6dcda833; }
+    .node.active::before { background: #a6ecc7; box-shadow: 0 0 16px #8decc4; }
+    .node.done::before { background: #5eaa8c; }
+    .node .tag { display: inline-block; min-width: 66px; margin-right: 10px; color: #87c9b1; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .node.model .tag { color: #9fc2ff; }
+    .node.db .tag { color: #ffca9a; }
+    .node strong { font-size: 14px; }
+    .node code { display: block; margin-top: 6px; color: #92aeb9; font-size: 11px; overflow-wrap: anywhere; }
+    .panel { position: sticky; top: 24px; border: 1px solid #3e6159; border-radius: 18px; background: #132821; padding: 24px; box-shadow: 0 18px 40px #0004; }
+    .panel h2 { margin: 8px 0 16px; font-size: 24px; letter-spacing: -.04em; }
+    .panel h3 { margin: 22px 0 7px; color: #9de2bf; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+    .panel p { margin: 0; color: #d4e5dc; font-size: 14px; line-height: 1.55; }
+    .panel pre { margin: 0; padding: 13px; border: 1px solid #3b5852; border-radius: 10px; background: #0b1a17; color: #e0f4e9; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .panel .limits { color: #9cbab0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 18px; color: #99aeb4; font-size: 12px; }
+    .legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #87c9b1; }
+    .legend .db::before { background: #ffca9a; }
+    .legend .model::before { background: #9fc2ff; }
+    .footer { margin-top: 30px; border-top: 1px solid #28434a; padding-top: 19px; color: #9eb3b9; font-size: 13px; line-height: 1.6; }
+    @media (max-width: 850px) { .layout { grid-template-columns: 1fr; } .panel { position: static; grid-row: 1; } .top { flex-direction: column; } .progress { margin-left: 0; width: 100%; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Qwen harness · interactive source map</p>
+        <h1>Watch one chat request cross the stack.</h1>
+        <p class="intro">Click a node or press Play. Each highlighted box names the file and function that handles the data. Switch between a first message and a follow-up to see where conversation history changes the request.</p>
+      </div>
+      <a class="back" href="/">← Back to chat</a>
+    </header>
+    <div class="controls" aria-label="Diagram controls">
+      <button id="play" type="button">▶ Play</button>
+      <button id="back" type="button">← Previous</button>
+      <button id="next" type="button">Next →</button>
+      <span class="separator" aria-hidden="true"></span>
+      <button id="first" type="button" class="selected">First message</button>
+      <button id="follow" type="button">Follow-up</button>
+      <span class="progress" id="progress"></span>
+    </div>
+    <div class="layout">
+      <div class="diagram" id="diagram" aria-label="Connected request flow"></div>
+      <section class="panel" aria-live="polite">
+        <p class="eyebrow" id="stage"></p>
+        <h2 id="title"></h2>
+        <h3>Input → output</h3>
+        <pre id="example"></pre>
+        <h3>What happens</h3>
+        <p id="mechanism"></p>
+        <h3>What this does not prove</h3>
+        <p class="limits" id="limit"></p>
+      </section>
+    </div>
+    <div class="legend"><span>Browser / Python function</span><span class="db">SQLite file access</span><span class="model">Separate vLLM process and HTTP</span></div>
+    <p class="footer">This page is a guide to the current source code, not a live request trace. A failed model call does not reach the save step. The SQLite connection used for history is closed before Python waits for vLLM; saving opens a fresh connection afterward. The app’s <code>/health</code> route exists for a later lesson but this dashboard does not request it.</p>
+  </div>
+  <script>
+    const steps = [
+      { layer: 'Browser', name: 'Send the draft', path: 'frontend/src/App.tsx · handleSend()', example: ['draft = "Hi"\nconversationId = null', 'draft = "What did I say?"\nconversationId = "abc…"'], mechanism: 'The form handler reads React state. A first message has no ID; a follow-up reuses the ID returned by an earlier reply.', limit: 'React state is browser memory. This step does not save a message.' },
+      { layer: 'Browser', name: 'Build the HTTP request', path: 'frontend/src/api.ts · sendChat()', example: ['POST /chat\n{"message":"Hi"}', 'POST /chat\n{"message":"What did I say?","conversation_id":"abc…"}'], mechanism: 'JSON.stringify turns the JavaScript object into request text. fetch sends it over HTTP to FastAPI.', limit: 'A successful fetch call only means an HTTP response arrived; the code checks its status next.' },
+      { layer: 'API', name: 'Validate incoming JSON', path: 'backend/src/qwen_harness/api/schemas/chat.py · ChatRequest\nbackend/src/qwen_harness/api/routes/chat.py · chat()', example: ['JSON → ChatRequest(message="Hi", conversation_id=None)', 'JSON → ChatRequest(message="What did I say?", conversation_id="abc…")'], mechanism: 'FastAPI and Pydantic create a Python ChatRequest object. The route trims the message and passes its values to generate_chat_completion().', limit: 'Validation does not mean the model has run or SQLite has been written.' },
+      { layer: 'Python', name: 'Choose conversation ID', path: 'backend/src/qwen_harness/harness/chat.py · generate_chat_completion()', example: ['None → uuid4().hex → new ID', '"abc…" → reuse "abc…"'], mechanism: 'Python chooses a random ID for a new chat. The same ID groups later messages; SQLite assigns a separate integer ID to each row.', limit: 'The new ID is only a Python value until a successful turn is saved.' },
+      { layer: 'SQLite', name: 'Read saved history', path: 'backend/src/qwen_harness/storage.py · load_messages()', example: ['SELECT ... WHERE conversation_id = new ID\n→ []', 'SELECT ... WHERE conversation_id = "abc…"\n→ [("user", "Hi"), ("assistant", "Hello")]'], mechanism: 'sqlite3.connect opens a short connection. SQL filters by conversation ID and orders by row ID. fetchall returns a Python list of tuples; finally closes the connection.', limit: 'A list of tuples is only the saved history. It does not include the current unsaved message.' },
+      { layer: 'Python', name: 'Build model messages', path: 'backend/src/qwen_harness/harness/chat.py · build_messages()', example: ['[] → [{"role":"user","content":"Hi"}]', '[("user","Hi"), ("assistant","Hello")]\n→ [{"role":"user","content":"Hi"}, {"role":"assistant","content":"Hello"}, {"role":"user","content":"What did I say?"}]'], mechanism: 'The for loop unpacks each saved tuple into role and content names. append adds a new dictionary to the request list. The current user text is appended last. A configured system prompt would be inserted first.', limit: 'These dictionaries are request data in Python memory, not new SQLite rows.' },
+      { layer: 'Model', name: 'Send JSON to vLLM', path: 'backend/src/qwen_harness/harness/vllm_client.py · send_request()', example: ['httpx.post(..., json=payload)\n→ HTTP request to port 8000', 'httpx.post(..., json=payload)\n→ HTTP request to port 8000'], mechanism: 'HTTPX serializes the Python payload as JSON. The separately running vLLM process receives it at /v1/chat/completions. No SQLite connection stays open during this wait.', limit: 'vLLM receives messages, not a database path; it does not read the chat file.' },
+      { layer: 'Model', name: 'Parse the model reply', path: 'backend/src/qwen_harness/harness/chat.py · generate_chat_completion()', example: ['HTTPX Response → response.json()\n→ assistant text', 'HTTPX Response → response.json()\n→ assistant text'], mechanism: 'raise_for_status rejects HTTP errors. response.json() parses incoming JSON into Python data. Python extracts the assistant content and checks that it is nonempty text.', limit: 'If the request or reply fails validation here, save_turn() is not called.' },
+      { layer: 'SQLite', name: 'Save both messages', path: 'backend/src/qwen_harness/storage.py · save_turn()', example: ['INSERT user + INSERT assistant\n→ commit → two row IDs', 'INSERT user + INSERT assistant\n→ commit → two new row IDs'], mechanism: 'A new connection opens. with connection commits both inserts together, or rolls both back if either fails. finally closes the connection. SQLite assigns each row ID.', limit: 'The model reply is now saved locally; this says nothing about future streaming or concurrent sends.' },
+      { layer: 'API', name: 'Return a small JSON reply', path: 'backend/src/qwen_harness/api/routes/chat.py · chat()\nbackend/src/qwen_harness/api/schemas/chat.py · ChatResponse', example: ['{"conversation_id":"new ID","assistant":"…","user_message_id":1,"assistant_message_id":2}', '{"conversation_id":"abc…","assistant":"…","user_message_id":3,"assistant_message_id":4}'], mechanism: 'The harness returns a Python dictionary. FastAPI checks the response fields and serializes a new JSON HTTP response to the browser.', limit: 'Example row IDs are illustrations, not values from your database.' },
+      { layer: 'Browser', name: 'Read back and render saved rows', path: 'frontend/src/App.tsx · handleSend()\nfrontend/src/api.ts · loadMessages(), listConversations()', example: ['GET /conversations/new-ID/messages\n→ React setMessages(rows)', 'GET /conversations/abc…/messages\n→ React setMessages(rows)'], mechanism: 'The browser saves the selected conversation ID in localStorage, requests the actual saved rows through FastAPI, and React renders them with their SQLite row IDs.', limit: 'Refreshing the page causes a new GET. The browser cannot query SQLite directly.' },
+    ]
+    let current = 0
+    let scenario = 0
+    let timer = null
+    const diagram = document.getElementById('diagram')
+    steps.forEach((step, index) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `node ${step.layer === 'SQLite' ? 'db' : step.layer === 'Model' ? 'model' : ''}`
+      button.innerHTML = `<span class="tag"></span><strong></strong><code></code>`
+      button.querySelector('.tag').textContent = step.layer
+      button.querySelector('strong').textContent = step.name
+      button.querySelector('code').textContent = step.path
+      button.addEventListener('click', () => { stop(); show(index) })
+      diagram.append(button)
+    })
+    function show(index) {
+      current = Math.max(0, Math.min(steps.length - 1, index))
+      const step = steps[current]
+      document.getElementById('stage').textContent = `${step.layer} · ${step.path}`
+      document.getElementById('title').textContent = step.name
+      document.getElementById('example').textContent = step.example[scenario]
+      document.getElementById('mechanism').textContent = step.mechanism
+      document.getElementById('limit').textContent = step.limit
+      document.getElementById('progress').textContent = `${current + 1} / ${steps.length} steps`
+      document.getElementById('back').disabled = current === 0
+      document.getElementById('next').disabled = current === steps.length - 1
+      Array.from(diagram.children).forEach((node, i) => { node.classList.toggle('active', i === current); node.classList.toggle('done', i < current) })
+    }
+    function stop() { clearInterval(timer); timer = null; document.getElementById('play').textContent = '▶ Play' }
+    document.getElementById('play').addEventListener('click', () => {
+      if (timer) { stop(); return }
+      if (current === steps.length - 1) show(0)
+      document.getElementById('play').textContent = '❚❚ Pause'
+      timer = setInterval(() => {
+        if (current === steps.length - 1) { stop(); return }
+        show(current + 1)
+        diagram.children[current].scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 1650)
+    })
+    document.getElementById('back').addEventListener('click', () => { stop(); show(current - 1) })
+    document.getElementById('next').addEventListener('click', () => { stop(); show(current + 1) })
+    for (const [id, value] of [['first', 0], ['follow', 1]]) {
+      document.getElementById(id).addEventListener('click', () => {
+        scenario = value
+        document.getElementById('first').classList.toggle('selected', scenario === 0)
+        document.getElementById('follow').classList.toggle('selected', scenario === 1)
+        show(current)
+      })
+    }
+    show(0)
+  </script>
+</body>
+</html>

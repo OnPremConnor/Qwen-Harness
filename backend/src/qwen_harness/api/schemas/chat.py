@@ -4,13 +4,13 @@ from pydantic import BaseModel
 
 
 class ChatRequest(BaseModel):
-    # The caller chooses text. An absent ID starts a chat; a returned ID
-    # continues that chat on a later request.
+    # Pydantic requires message text and accepts a missing ID for a new chat.
     message: str
     conversation_id: str | None = None
 
 
 class ChatResponse(BaseModel):
+    # FastAPI checks the outgoing dictionary against these response fields.
     conversation_id: str
     assistant: str
     user_message_id: int

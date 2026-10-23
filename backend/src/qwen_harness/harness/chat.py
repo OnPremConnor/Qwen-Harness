@@ -19,11 +19,15 @@ def build_messages(
     saved_rows: list[tuple[str, str]], new_message: str, system_prompt: str | None = None
 ) -> list[dict[str, str]]:
     """Reshape SQLite tuples into vLLM message dictionaries, in order."""
+    # [] creates a new Python list for this request; it does not alter saved rows.
     messages = []
     if system_prompt:
+        # A configured system prompt leads the request but is not stored in SQLite.
         messages.append({"role": "system", "content": system_prompt})
     for role, content in saved_rows:
+        # Unpack each two-string tuple, then append a new dictionary vLLM expects.
         messages.append({"role": role, "content": content})
+    # The current user text has not been saved yet, but the model must see it.
     messages.append({"role": "user", "content": new_message})
     return messages
 
@@ -31,15 +35,18 @@ def build_messages(
 def generate_chat_completion(message: str, conversation_id: str | None = None) -> dict:
     # The API creates an ID for a new chat; callers reuse the returned ID later.
     active_id = conversation_id if conversation_id is not None else uuid4().hex
+    # load_messages opens and closes SQLite before the slower model HTTP call.
     saved_rows = load_messages(DATABASE_PATH, active_id)
     if conversation_id is not None and not saved_rows:
         raise UnknownConversation(active_id)
 
+    # This new dictionary is the body for vLLM, separate from FastAPI's incoming body.
     payload = {
         "model": VLLM_MODEL,
         "messages": build_messages(saved_rows, message, SYSTEM_PROMPT),
     }
     response = send_request(payload)
+    # An unsuccessful HTTP status stops here, so this turn is not saved.
     response.raise_for_status()
     try:
         # HTTPX decodes vLLM's JSON reply into Python dictionaries and lists.
@@ -52,8 +59,7 @@ def generate_chat_completion(message: str, conversation_id: str | None = None) -
     if not assistant_content:
         raise InvalidModelReply("Empty assistant content")
 
-    # The read connection closed before the model call. This opens a fresh
-    # connection and saves the user/assistant pair only after a valid reply.
+    # A fresh SQLite connection saves both rows only after a valid model reply.
     user_id, assistant_id = save_turn(DATABASE_PATH, active_id, message, assistant_content)
     return {
         "conversation_id": active_id,
