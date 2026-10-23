@@ -68,8 +68,21 @@ Vite serves source changes at `http://127.0.0.1:5173/`. Its proxy passes `/chat`
 
 For a new chat, send `POST http://127.0.0.1:8001/chat` with `{"message": "Say hello"}`. The reply includes `conversation_id`, assistant text, and both saved row IDs. Send a later message with `{"message": "What did I say?", "conversation_id": "<returned ID>"}` to continue the chat. `GET /conversations` lists saved chats; `GET /conversations/<ID>/messages` returns that chat's saved rows.
 
-To exercise the Python history and SQLite save behavior without a running model, run `uv run python -m unittest discover -s tests -v` from `backend/`. The tests use a temporary database and a stand-in model response; passing them does not prove live vLLM availability. The app's `/health` route checks the API, SQLite table, and vLLM health endpoint separately, but the frontend does not display its result.
+To exercise the Python history and SQLite save behavior without a running model, run `uv run python -m unittest discover -s tests -v` from `backend/`. The tests use a temporary database and a stand-in model response; passing them does not prove live vLLM availability. The app's `/health` route separately reports whether its handler ran, a SQLite table query succeeded, and vLLM's `/health` replied successfully. It currently returns HTTP 200 (response status) even when its `database` or `model` field says `unavailable`; the status alone does not prove a chat can complete. The frontend does not request this route.
 
 This is a local, single-user learning app. System-prompt configuration is optional in `settings.py`. Tool calls, streaming, account ownership, and safe handling of concurrent sends to the same conversation are later work; the current `role`/`content` schema stores text chat only.
 
-The Uvicorn process can optionally read `VLLM_REASONING_EFFORT` and `VLLM_TIMEOUT_SECONDS` from its environment. The first adds a `reasoning_effort` field to outgoing model requests; the second changes how long HTTPX waits for a model response. Without those variables, the harness keeps its usual model behavior and 120 seconds (default HTTPX timeout). These settings do not change the React page or the vLLM container.
+## Known browser behavior to revisit
+
+Controlled browser tests against the built React page reproduced these cases; they did not use the real SQLite file or model:
+
+| Trigger | Observed result | Where to look |
+|---|---|---|
+| A remembered chat's message GET finishes after a new send, or an older sidebar click finishes after a newer click | The older result can replace the selected conversation. Rapid clicks changed the ID and messages together; they did not mix two chats' rows. | `App.tsx`: `restore()`, `openConversation()`, `handleSend()` |
+| POST `/chat` succeeds but the following GET fails | The reply is saved, but the page can show its ID under “New chat” without rows or a sidebar entry. Refresh after the read service recovers; sending the same text again can duplicate a saved turn. | `App.tsx`: `Promise.all` and its error path |
+| An HTTP error has a non-JSON body | The page displays a JSON parse error without the HTTP status. | `api.ts`: `readJson()` parses before checking `response.ok` |
+| An unexpected message role arrives | The page labels it “Qwen.” The current save path writes only `user` and `assistant`; TypeScript types alone would not validate a network reply. | `App.tsx`: message rendering |
+
+The browser has no cancel control while a request is pending. Do not copy a short frontend timeout from the model review: a legitimate review in this project took about 447 seconds (request duration). The backend normally applies a 120 seconds (HTTPX network-operation timeout) to the vLLM call and maps an HTTPX failure to HTTP 502 (gateway-error status). A browser abort would not prove that the backend stopped work or that SQLite was unchanged. See the dated validation in the Learning-Files [Lab 03](https://github.com/OnPremConnor/Learning-Files/blob/main/labs/03-python-harness.md) before changing these paths.
+
+The Uvicorn process can optionally read `VLLM_REASONING_EFFORT` and `VLLM_TIMEOUT_SECONDS` from its environment. The first adds a `reasoning_effort` field to outgoing model requests; the second sets HTTPX's timeout for network operations with vLLM, not a guaranteed total request deadline. Without those variables, the harness keeps its usual model behavior and the 120 seconds (default HTTPX timeout). These settings do not change the React page or the vLLM container.
