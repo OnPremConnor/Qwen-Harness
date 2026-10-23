@@ -7,6 +7,8 @@ A small backend for learning how an HTTP request reaches a locally served Qwen m
 | Location | Job |
 |---|---|
 | `backend/` | Python project, dependency lockfile, and its own `.venv/` |
+| `backend/schema.sql` | SQL instructions for the local `messages` table |
+| `backend/data/` | Local SQLite files; database files are ignored by Git |
 | `backend/src/qwen_harness/settings.py` | Fixed local vLLM address, model name, and HTTP timeout |
 | `backend/src/qwen_harness/api/main.py` | Creates the FastAPI application and attaches its routes |
 | `backend/src/qwen_harness/api/routes/chat.py` | Defines the incoming `POST /chat` route |
@@ -16,6 +18,8 @@ A small backend for learning how an HTTP request reaches a locally served Qwen m
 | `frontend/` (future) | Dashboard code; it will call this backend over HTTP |
 
 Request flow: caller → API route → harness chat function → vLLM client → vLLM server. The reply travels back through those same Python functions. The current route sends only the caller's latest message and returns vLLM's full JSON reply body. It does not store conversation history or run records.
+
+The schema is tracked in Git; each checkout creates its own local database file. From `backend/`, run `sqlite3 data/chats.db < schema.sql` to create the `messages` table. On this Spark, that file currently contains a small `sqlite-demo` conversation for learning. The FastAPI route does not read or write it yet, so requests to `/chat` still have no saved history. Git ignores the database file.
 
 ## Run the backend
 
