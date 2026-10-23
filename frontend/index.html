@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local model lab</title>
+    <link rel="stylesheet" href="/assets/style.css" />
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">Q</span>
+          <div>
+            <p class="eyebrow">DGX Spark · local only</p>
+            <h1>Model lab</h1>
+          </div>
+        </div>
+        <div class="status-strip" aria-label="Service status">
+          <span class="status" id="api-status">API <b>Checking</b></span>
+          <span class="status" id="database-status">SQLite <b>Checking</b></span>
+          <span class="status" id="model-status">vLLM <b>Checking</b></span>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar">
+          <div class="sidebar-heading">
+            <div>
+              <p class="eyebrow">Saved locally</p>
+              <h2>Conversations</h2>
+            </div>
+            <button id="new-chat" class="new-button" type="button">+ New</button>
+          </div>
+          <nav id="conversation-list" aria-label="Saved conversations"></nav>
+          <p class="sidebar-foot">The browser keeps the active conversation ID. SQLite keeps the messages.</p>
+        </aside>
+
+        <main class="main-area">
+          <section class="chat-panel" aria-label="Chat">
+            <div class="chat-heading">
+              <div>
+                <p class="eyebrow">Conversation</p>
+                <h2 id="chat-title">New chat</h2>
+              </div>
+              <div class="conversation-id" id="conversation-id">ID assigned after first reply</div>
+            </div>
+
+            <div id="messages" class="messages" aria-live="polite"></div>
+
+            <div class="composer-wrap">
+              <div id="error" class="error" role="alert" hidden></div>
+              <form id="chat-form" class="composer">
+                <label for="message-input" class="sr-only">Message</label>
+                <textarea id="message-input" rows="2" placeholder="Ask the local model something…" required></textarea>
+                <button id="send-button" type="submit">Send <span aria-hidden="true">↗</span></button>
+              </form>
+              <p class="composer-note">Enter sends · Shift+Enter adds a line · Replies are saved after vLLM succeeds</p>
+            </div>
+          </section>
+
+          <aside class="inspector" aria-label="Request flow">
+            <p class="eyebrow">Visible request path</p>
+            <h2>What happens on Send</h2>
+            <ol class="flow">
+              <li><span>Browser</span><small>POST /chat with text and conversation ID</small></li>
+              <li><span>FastAPI + Python</span><small>Read SQLite rows, build ordered messages</small></li>
+              <li><span>vLLM</span><small>Return assistant content over HTTP</small></li>
+              <li><span>SQLite</span><small>Save both messages in one transaction</small></li>
+            </ol>
+            <div class="receipt">
+              <p class="eyebrow">Last successful turn</p>
+              <p id="last-turn">Send a message to see its saved row IDs.</p>
+            </div>
+            <a class="docs-link" href="/docs" target="_blank" rel="noreferrer">Open API docs <span aria-hidden="true">↗</span></a>
+          </aside>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>
