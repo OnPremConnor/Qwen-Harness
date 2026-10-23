@@ -1,5 +1,6 @@
 """Fixed local model settings for this learning project."""
 
+import os
 from pathlib import Path
 
 # settings.py lives in backend/src/qwen_harness/. These paths point back to
@@ -15,7 +16,9 @@ SCHEMA_PATH = BACKEND_DIR / "schema.sql"
 VLLM_CHAT_URL = "http://127.0.0.1:8000/v1/chat/completions"
 VLLM_HEALTH_URL = "http://127.0.0.1:8000/health"
 VLLM_MODEL = "qwen3.8-27b-fp8"
-VLLM_TIMEOUT_SECONDS = 120
+# Optional process settings let one review use medium thinking and a longer wait.
+VLLM_REASONING_EFFORT = os.getenv("VLLM_REASONING_EFFORT")
+VLLM_TIMEOUT_SECONDS = int(os.getenv("VLLM_TIMEOUT_SECONDS", "120"))
 
 # If set later, this is prepended to each outgoing request. It is not a row
 # in the current conversation-history table.

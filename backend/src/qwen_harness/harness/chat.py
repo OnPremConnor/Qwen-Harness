@@ -3,7 +3,7 @@
 from uuid import uuid4
 
 from qwen_harness.harness.vllm_client import send_request
-from qwen_harness.settings import DATABASE_PATH, SYSTEM_PROMPT, VLLM_MODEL
+from qwen_harness.settings import DATABASE_PATH, SYSTEM_PROMPT, VLLM_MODEL, VLLM_REASONING_EFFORT
 from qwen_harness.storage import load_messages, save_turn
 
 
@@ -45,6 +45,9 @@ def generate_chat_completion(message: str, conversation_id: str | None = None) -
         "model": VLLM_MODEL,
         "messages": build_messages(saved_rows, message, SYSTEM_PROMPT),
     }
+    # A process setting can request model thinking depth without changing the dashboard.
+    if VLLM_REASONING_EFFORT:
+        payload["reasoning_effort"] = VLLM_REASONING_EFFORT
     response = send_request(payload)
     # An unsuccessful HTTP status stops here, so this turn is not saved.
     response.raise_for_status()
