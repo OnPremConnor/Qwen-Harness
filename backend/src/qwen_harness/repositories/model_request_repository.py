@@ -1,6 +1,6 @@
 """Save one row of facts about every model request (the model_requests table)."""
 
-from qwen_harness.database import connect
+from qwen_harness.db.connection import connect
 
 # :name placeholders take their values from the dictionary passed to execute, so the
 # SQL stays readable and the dictionary keys must match these names exactly.

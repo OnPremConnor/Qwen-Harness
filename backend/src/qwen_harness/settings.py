@@ -3,12 +3,11 @@
 from pathlib import Path
 
 # settings.py lives in backend/src/qwen_harness/. These paths point back to
-# the checked-out backend and its sibling frontend and docs folders.
+# the checked-out backend and its sibling frontend folder.
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
-FLOW_DIAGRAM_PATH = BACKEND_DIR.parent / "docs" / "request-flow.html"
 DATABASE_PATH = BACKEND_DIR / "data" / "chats.db"
-SCHEMA_PATH = BACKEND_DIR / "schema.sql"
+SCHEMA_PATH = BACKEND_DIR / "src" / "qwen_harness" / "db" / "schema.sql"
 
 VLLM_CHAT_URL = "http://127.0.0.1:8000/v1/chat/completions"
 VLLM_MODEL = "qwen3.8-27b-fp8"

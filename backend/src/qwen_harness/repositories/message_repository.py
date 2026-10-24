@@ -1,6 +1,6 @@
 """Save and load chat messages (the messages table)."""
 
-from qwen_harness.database import connect
+from qwen_harness.db.connection import connect
 
 
 def conversation_exists(conversation_id: str) -> bool:

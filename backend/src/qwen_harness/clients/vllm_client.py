@@ -1,6 +1,7 @@
 """Send one streamed chat request to the separately running vLLM server."""
 
 import json
+from collections.abc import AsyncIterator
 
 import httpx
 
@@ -23,8 +24,12 @@ def parse_stream_line(line: str) -> dict | None:
     return json.loads(body)
 
 
-async def stream_chat(payload: dict):
-    """Send the payload to vLLM and yield each reply piece as a dictionary, as it arrives."""
+async def stream_chat(payload: dict) -> AsyncIterator[dict]:
+    """Send the payload to vLLM and yield each reply piece as a dictionary, as it arrives.
+
+    "async def" plus "yield" makes this an async generator: the caller loops over it with
+    "async for" and gets each piece the moment it arrives, instead of waiting for all of them.
+    """
     # Wait at most 10 seconds to connect, write, or get a connection from the pool,
     # but allow a long silence while vLLM reads the prompt or thinks.
     timeout = httpx.Timeout(10.0, read=VLLM_SILENCE_TIMEOUT_SECONDS)
