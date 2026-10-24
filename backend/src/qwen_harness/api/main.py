@@ -1,9 +1,7 @@
 """Create the local API and serve its small browser dashboard."""
 
-import sqlite3
 from contextlib import asynccontextmanager
 
-import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +12,6 @@ from qwen_harness.settings import (
     FLOW_DIAGRAM_PATH,
     FRONTEND_DIST_DIR,
     SCHEMA_PATH,
-    VLLM_HEALTH_URL,
 )
 from qwen_harness.storage import initialize_database
 
@@ -44,24 +41,3 @@ def dashboard() -> FileResponse:
 def request_flow() -> FileResponse:
     # This teaching page is a tracked HTML file, separate from the React build.
     return FileResponse(FLOW_DIAGRAM_PATH)
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    """Report local API, SQLite, and model status for later exercises."""
-    try:
-        connection = sqlite3.connect(DATABASE_PATH)
-        try:
-            connection.execute("SELECT 1 FROM messages LIMIT 1")
-            database = "ready"
-        finally:
-            connection.close()
-    except sqlite3.Error:
-        database = "unavailable"
-
-    try:
-        response = httpx.get(VLLM_HEALTH_URL, timeout=2)
-        model = "ready" if response.is_success else "unavailable"
-    except httpx.HTTPError:
-        model = "unavailable"
-    return {"api": "ready", "database": database, "model": model}
