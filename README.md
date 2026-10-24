@@ -1,88 +1,78 @@
 # Qwen harness
 
-A local chat dashboard and Python backend for learning how an HTTP request reaches a separately served Qwen model. vLLM runs in Docker; FastAPI, SQLite, and the browser page run on the Spark host.
+A small local chat app for learning how a browser request reaches a separately served Qwen model and how to measure what the model does. vLLM runs in Docker; FastAPI, SQLite, and one plain HTML page run on the Spark host. The model's reply streams to the page while it is written.
 
 ## Project map
 
+Every file has one job, and no two files share a name.
+
 | Location | Job |
 |---|---|
-| `backend/` | Python project, dependency lockfile, and its own `.venv/` |
-| `backend/schema.sql` | SQL instructions for the local `messages` table |
-| `backend/data/` | Local SQLite chat file; database files are ignored by Git |
-| `backend/src/qwen_harness/settings.py` | Local database and vLLM addresses, model name, and timeout |
-| `backend/src/qwen_harness/api/main.py` | Creates FastAPI, runs the SQL schema at startup, serves the built dashboard and flow guide |
-| `backend/src/qwen_harness/api/routes/chat.py` | Receives chat requests and serves saved conversation lists and messages |
-| `backend/src/qwen_harness/api/schemas/chat.py` | Defines the incoming `message` and optional `conversation_id` fields |
-| `backend/src/qwen_harness/storage.py` | Opens short SQLite connections to read and save messages |
-| `backend/src/qwen_harness/harness/chat.py` | Builds ordered vLLM messages from saved rows and saves successful replies |
-| `backend/src/qwen_harness/harness/vllm_client.py` | Sends the outgoing HTTP request with HTTPX |
-| `frontend/src/App.tsx` | React chat page and browser state |
-| `frontend/src/api.ts` | Browser HTTP calls and TypeScript shapes for API replies |
-| `frontend/src/style.css` | Tailwind CSS entry point |
-| `frontend/vite.config.ts` | React and Tailwind build setup; development proxy to FastAPI |
-| `docs/request-flow.html` | Clickable, animated source map for a first message and follow-up |
+| `frontend/index.html` | The whole chat page: HTML, a little CSS, and plain JavaScript. No build step. |
+| `backend/src/qwen_harness/main.py` | The FastAPI app: `POST /chat` (streams), `GET /conversations/{id}/messages`, the page at `/`, the flow guide at `/flow` |
+| `backend/src/qwen_harness/chat_turn.py` | One chat turn: read history, build the vLLM request, turn reply pieces into events, save the results |
+| `backend/src/qwen_harness/vllm_client.py` | Sends the streamed HTTP request to vLLM and yields each reply piece |
+| `backend/src/qwen_harness/messages.py` | Saves and loads chat messages (the `messages` table) |
+| `backend/src/qwen_harness/model_requests.py` | Saves one row of facts per model request (the `model_requests` table) |
+| `backend/src/qwen_harness/database.py` | Opens SQLite connections and creates the tables |
+| `backend/src/qwen_harness/settings.py` | Paths, the vLLM address, model name, default thinking depth, and the silence limit |
+| `backend/schema.sql` | SQL for both tables, with a comment on every column |
+| `backend/tests/test_chat_turn.py` | Tests with a stand-in model; they use a temporary database |
+| `backend/data/` | The local SQLite file (ignored by Git) |
+| `docs/request-flow.html` | Clickable, animated source map of one request |
 
-Request flow: browser → FastAPI `/chat` → SQLite read → Python reshapes saved `(role, content)` tuples into dictionaries → HTTPX sends JSON to vLLM → Python extracts assistant text → SQLite saves the user and assistant rows together → FastAPI replies → browser reloads the saved rows. A SQLite connection is not held open while vLLM replies.
+## What happens on one message
 
-When a request has no `conversation_id`, Python generates a random UUID and returns it after a successful reply. The browser sends that ID on later turns. SQLite assigns each message's integer `id` when the row is inserted; `ORDER BY id` reconstructs the saved order. The first user and assistant rows are saved only after vLLM provides valid assistant text. If the model call fails, that turn is not saved. FastAPI executes `schema.sql` on startup to create a missing table without deleting existing rows. Git ignores the database file.
+browser → `POST /chat` → SQLite read of the saved history → Python reshapes `(role, content)` tuples into dictionaries → HTTPX sends JSON with `"stream": true` to vLLM → vLLM replies in pieces → each piece becomes a JSON line (`reasoning`, `answer`, then `done` or `error`) → the page shows them as they arrive. The user and assistant rows are saved only after a good answer. Whatever happens, including a failure or a Stop, one row goes into `model_requests`.
 
-## Run the backend and dashboard
+A new chat gets a random UUID from Python. After a finished turn the page puts it in the address bar (`/#<id>`), so a reload can show the saved messages again. SQLite assigns each message its integer `id`; `ORDER BY id` restores the order. `schema.sql` runs at startup and never deletes existing rows.
 
-From the repository root, install the frontend's locked dependencies and build its files:
+Qwen's own default thinking depth is `xhigh`, which can think for thousands of tokens even on a simple prompt. The page's Thinking menu defaults to `low`; each request records the level it used.
 
-```bash
-cd frontend
-npm ci
-npm run build
-```
+## Run it
 
-`cd` selects the frontend project. `npm ci` installs the versions in `package-lock.json` into ignored `node_modules/`. `npm run build` checks TypeScript and writes browser files to ignored `frontend/dist/`. Building files does not start a server or contact vLLM; FastAPI serves the built files when it runs.
-
-From the repository root, enter `backend/` and install its locked Python dependencies:
+With the separate vLLM server already running, from the repository root:
 
 ```bash
 cd backend
 uv sync
+uv run uvicorn qwen_harness.main:app --host 127.0.0.1 --port 8001
 ```
 
-`cd` selects the Python project folder. `uv sync` creates or updates `backend/.venv/` from `backend/pyproject.toml` and `backend/uv.lock`. It does not install or start vLLM.
+`uv sync` creates or updates `backend/.venv/` from `pyproject.toml` and `uv.lock`; it does not start vLLM. `uv run` uses that environment, and Uvicorn imports the `app` object from `qwen_harness.main`. The host and port make the app reachable only on this machine. Stopping Uvicorn does not stop the vLLM container, and the database file stays on disk.
 
-With the separate vLLM server already running, start FastAPI:
+Open `http://127.0.0.1:8001/` for the chat page, `http://127.0.0.1:8001/docs` for the generated API docs, and `http://127.0.0.1:8001/flow` for the source map. Uvicorn's terminal shows one timestamped line when a chat starts and one when it ends, with the status, seconds, and token counts, or the real error.
+
+## Look at the data
 
 ```bash
-uv run uvicorn qwen_harness.api.main:app --host 127.0.0.1 --port 8001
+cd backend
+sqlite3 -readonly data/chats.db
 ```
 
-`uv run` uses this backend's environment. Uvicorn imports the `app` object from `qwen_harness.api.main`. The host and port make this API reachable only on this machine at `http://127.0.0.1:8001`. Stopping Uvicorn stops this API process, not the vLLM container; the database file remains on disk.
+Then, at the `sqlite>` prompt:
 
-Open `http://127.0.0.1:8001/` in a browser. React shows saved conversations, SQLite row IDs, and chat replies. The page uses the same HTTP routes available in Postman and at `http://127.0.0.1:8001/docs`. Open `http://127.0.0.1:8001/flow` for a clickable source map of the request.
+```sql
+SELECT COUNT(*) FROM messages;
+SELECT id, status, reasoning_effort, completion_tokens, reasoning_tokens, seconds_total FROM model_requests ORDER BY id DESC LIMIT 5;
+```
 
-For frontend development, run Vite in another terminal after FastAPI is running:
+`.tables`, `.schema model_requests`, and `.help` show what exists. Type `.quit` to leave.
+
+## Tests
+
+From `backend/`:
 
 ```bash
-cd frontend
-npm run dev
+uv run python -m unittest discover -s tests -v
 ```
 
-Vite serves source changes at `http://127.0.0.1:5173/`. Its proxy passes `/chat`, `/conversations`, and `/flow` requests to FastAPI at `http://127.0.0.1:8001/`, so the browser can keep using relative URLs. This development server is separate from the built page FastAPI serves; rebuild before expecting source edits to appear on port `8001`.
+The tests use a temporary database and a stand-in model; passing them does not prove vLLM is available.
 
-For a new chat, send `POST http://127.0.0.1:8001/chat` with `{"message": "Say hello"}`. The reply includes `conversation_id`, assistant text, and both saved row IDs. Send a later message with `{"message": "What did I say?", "conversation_id": "<returned ID>"}` to continue the chat. `GET /conversations` lists saved chats; `GET /conversations/<ID>/messages` returns that chat's saved rows.
+## Calling the API without the page
 
-To exercise the Python history and SQLite save behavior without a running model, run `uv run python -m unittest discover -s tests -v` from `backend/`. The tests use a temporary database and a stand-in model response; passing them does not prove live vLLM availability.
+`POST http://127.0.0.1:8001/chat` with `{"message": "Say hello", "reasoning_effort": "low"}` returns lines of JSON as the reply is written. Add `"conversation_id": "<id from a done line>"` to continue a chat. Bad input is rejected with HTTP 422 or 404 before anything streams. After streaming starts the HTTP status is already 200, so a failure arrives as a line `{"type": "error", ...}`.
 
-This is a local, single-user learning app. System-prompt configuration is optional in `settings.py`. Tool calls, streaming, account ownership, and safe handling of concurrent sends to the same conversation are later work; the current `role`/`content` schema stores text chat only.
+## Limits
 
-## Known browser behavior to revisit
-
-Controlled browser tests against the built React page reproduced these cases; they did not use the real SQLite file or model:
-
-| Trigger | Observed result | Where to look |
-|---|---|---|
-| A remembered chat's message GET finishes after a new send, or an older sidebar click finishes after a newer click | The older result can replace the selected conversation. Rapid clicks changed the ID and messages together; they did not mix two chats' rows. | `App.tsx`: `restore()`, `openConversation()`, `handleSend()` |
-| POST `/chat` succeeds but the following GET fails | The reply is saved, but the page can show its ID under “New chat” without rows or a sidebar entry. Refresh after the read service recovers; sending the same text again can duplicate a saved turn. | `App.tsx`: `Promise.all` and its error path |
-| An HTTP error has a non-JSON body | The page displays a JSON parse error without the HTTP status. | `api.ts`: `readJson()` parses before checking `response.ok` |
-| An unexpected message role arrives | The page labels it “Qwen.” The current save path writes only `user` and `assistant`; TypeScript types alone would not validate a network reply. | `App.tsx`: message rendering |
-
-The browser has no cancel control while a request is pending. Do not copy a short frontend timeout from the model review: a legitimate review in this project took about 447 seconds (request duration). The backend normally applies a 120 seconds (HTTPX network-operation timeout) to the vLLM call and maps an HTTPX failure to HTTP 502 (gateway-error status). A browser abort would not prove that the backend stopped work or that SQLite was unchanged. See the dated validation in the Learning-Files [Lab 03](https://github.com/OnPremConnor/Learning-Files/blob/main/labs/03-python-harness.md) before changing these paths.
-
-The Uvicorn process can optionally read `VLLM_REASONING_EFFORT` and `VLLM_TIMEOUT_SECONDS` from its environment. The first adds a `reasoning_effort` field to outgoing model requests; the second sets HTTPX's timeout for network operations with vLLM, not a guaranteed total request deadline. Without those variables, the harness keeps its usual model behavior and the 120 seconds (default HTTPX timeout). These settings do not change the React page or the vLLM container.
+This is a local, single-user app. It does not yet support tool calls, accounts, a conversation list, or safe handling of two sends to the same conversation at once. The `role`/`content` schema stores text chat only. The whole saved history is sent on every turn and is never trimmed, so a very long chat eventually passes the model's 262,144 tokens (context limit); vLLM then rejects each new turn with an HTTP 400, which is recorded in `model_requests`. An answer cut off by a token limit (`finish_reason` of `length`) is still saved as a normal reply. Thinking text is saved in `model_requests`, not in `messages`, so a reload shows the saved messages without it. The streaming field names (`reasoning`, `content`, `usage`) were checked against vLLM 0.28.0.

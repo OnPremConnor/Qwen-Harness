@@ -1,12 +1,220 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Local Qwen chat</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Qwen harness</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #0b1119; color: #e6edf3; }
+    header, #messages, form { max-width: 820px; margin: 0 auto; padding: 12px 16px; box-sizing: border-box; }
+    header { display: flex; justify-content: space-between; align-items: center; }
+    h1 { font-size: 1.1rem; margin: 0; }
+    .label, .stats { font-size: 0.75rem; color: #8b98a5; }
+    .message { margin: 16px 0; }
+    .bubble { white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 14px; margin-top: 4px;
+              border: 1px solid #2b3744; border-radius: 10px; background: #161f2b; }
+    .user .bubble { background: #0f2a22; border-color: #1f5c47; }
+    details { margin-top: 4px; color: #9fb0c0; }
+    details pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0;
+                  font-family: inherit; font-size: 0.85rem; line-height: 1.4; }
+    .error { color: #ffb4ab; margin-top: 6px; }
+    form { position: sticky; bottom: 0; display: grid; gap: 8px; background: #0b1119; }
+    textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px; color: inherit;
+               background: #161f2b; border: 1px solid #2b3744; border-radius: 8px; }
+    .controls { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    button, select { font: inherit; padding: 6px 14px; color: inherit; background: #1f2b3a;
+                     border: 1px solid #3a4a5c; border-radius: 8px; }
+    #send { background: #2f7d62; border-color: #2f7d62; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Qwen harness</h1>
+    <button id="new" type="button">New chat</button>
+  </header>
+
+  <div id="messages"></div>
+
+  <form id="form">
+    <textarea id="text" rows="3" placeholder="Ask the local model…  (Enter sends, Shift+Enter adds a line)"></textarea>
+    <div class="controls">
+      <label>Thinking
+        <select id="effort">
+          <option value="low" selected>low</option>
+          <option value="medium">medium</option>
+          <option value="xhigh">xhigh (Qwen's default)</option>
+        </select>
+      </label>
+      <button id="send" type="submit">Send</button>
+    </div>
+  </form>
+
+  <script>
+    const messagesBox = document.getElementById('messages')
+    const form = document.getElementById('form')
+    const textBox = document.getElementById('text')
+    const effortBox = document.getElementById('effort')
+    const sendButton = document.getElementById('send')
+
+    // The address bar remembers the chat as /#<conversation id>. SQLite holds the messages.
+    let conversationId = location.hash.slice(1) || null
+    // Set only while a reply is streaming. controller.abort() closes the connection.
+    let controller = null
+
+    // Build one message block and return its pieces so we can fill them in later.
+    // textContent shows text as plain text and never as HTML, which keeps model output harmless.
+    function addMessage(role, text, rowId) {
+      const box = document.createElement('div')
+      box.className = `message ${role}`
+      const label = document.createElement('div')
+      label.className = 'label'
+      const bubble = document.createElement('div')
+      bubble.className = 'bubble'
+      bubble.textContent = text
+      box.append(label, bubble)
+      messagesBox.append(box)
+      const message = { role, box, label, bubble, thinking: null }
+      setRow(message, rowId)
+      return message
+    }
+
+    function setRow(message, rowId) {
+      const name = message.role === 'user' ? 'You' : 'Qwen'
+      message.label.textContent = rowId ? `${name} · SQLite row ${rowId}` : name
+    }
+
+    function addNote(message, text, className) {
+      const note = document.createElement('div')
+      note.className = className
+      note.textContent = text
+      message.box.append(note)
+      // A failed turn can leave an empty reply box; remove it so only the error shows.
+      if (className === 'error' && !message.bubble.textContent) message.bubble.remove()
+    }
+
+    // The first thinking text creates a collapsible box above the answer.
+    function addThinkingBox(message) {
+      const details = document.createElement('details')
+      details.open = true
+      const summary = document.createElement('summary')
+      summary.textContent = 'Thinking'
+      message.thinking = document.createElement('pre')
+      details.append(summary, message.thinking)
+      message.box.insertBefore(details, message.bubble)
+    }
+
+    // React to one event line from POST /chat.
+    function show(event, user, assistant) {
+      if (event.type === 'reasoning') {
+        if (!assistant.thinking) addThinkingBox(assistant)
+        assistant.thinking.textContent += event.text
+      } else if (event.type === 'answer') {
+        assistant.bubble.textContent += event.text
+      } else if (event.type === 'done') {
+        conversationId = event.conversation_id
+        location.hash = conversationId
+        setRow(user, event.user_message_id)
+        setRow(assistant, event.assistant_message_id)
+        // Clear the draft only if it is still the text we sent; a failed or stopped send keeps it.
+        if (textBox.value.trim() === user.bubble.textContent) textBox.value = ''
+        // Token counts and speeds can be missing (null); show "n/a" instead of "null".
+        const n = (value, unit) => (value == null ? 'n/a' : `${value} ${unit}`)
+        addNote(assistant,
+          `${n(event.completion_tokens, 'tokens')} (${n(event.reasoning_tokens, 'thinking')}) · ` +
+          `${n(event.seconds_total, 's')} · ${n(event.tokens_per_second, 'tokens/s')} · ` +
+          `first text after ${n(event.seconds_to_first_token, 's')} · finish: ${event.finish_reason ?? 'n/a'}`, 'stats')
+      } else if (event.type === 'error') {
+        addNote(assistant, `Failed: ${event.message}. Nothing was saved to the chat; ` +
+          `the details are in the model_requests table.`, 'error')
+      }
+      window.scrollTo(0, document.body.scrollHeight)
+    }
+
+    // fetch hands us the reply as chunks of bytes. A chunk can end in the middle of a
+    // line, so keep the unfinished end in `buffer` and add the next chunk to it.
+    async function readLines(response, onEvent) {
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+        for (const line of lines) if (line) onEvent(JSON.parse(line))
+      }
+    }
+
+    async function send(text) {
+      const user = addMessage('user', text)
+      const assistant = addMessage('assistant', '')
+      controller = new AbortController()
+      // Becomes true when a done or error line arrives, so we can notice a stream that just stops.
+      let finished = false
+      sendButton.textContent = 'Stop'
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, conversation_id: conversationId, reasoning_effort: effortBox.value }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          const body = await response.json()
+          throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
+        }
+        await readLines(response, event => {
+          if (event.type === 'done' || event.type === 'error') finished = true
+          show(event, user, assistant)
+        })
+        if (!finished) addNote(assistant, 'The reply ended before a result arrived. Reload the page to see what was saved.', 'error')
+      } catch (error) {
+        if (error.name === 'AbortError') addNote(assistant, 'Stopped. This turn was not saved to the chat.', 'error')
+        else addNote(assistant, `Failed: ${error.message}`, 'error')
+      } finally {
+        controller = null
+        sendButton.textContent = 'Send'
+        textBox.focus()
+      }
+    }
+
+    // Show the saved messages again when the page opens at /#<conversation id>.
+    async function loadHistory() {
+      if (!conversationId) return
+      const response = await fetch(`/conversations/${encodeURIComponent(conversationId)}/messages`)
+      if (!response.ok) { conversationId = null; location.hash = ''; return }
+      for (const row of await response.json()) addMessage(row.role, row.content, row.id)
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault()
+      if (controller) { controller.abort(); return }   // the button says Stop while streaming
+      const text = textBox.value.trim()
+      if (text) send(text)
+    })
+
+    textBox.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        if (!controller) form.requestSubmit()
+      }
+    })
+
+    document.getElementById('new').addEventListener('click', () => {
+      if (controller) return
+      conversationId = null
+      location.hash = ''
+      messagesBox.replaceChildren()
+    })
+
+    loadHistory().catch(error => {
+      const note = document.createElement('div')
+      note.className = 'error'
+      note.textContent = `Could not load this chat: ${error.message}`
+      messagesBox.append(note)
+    })
+  </script>
+</body>
 </html>
