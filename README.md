@@ -15,7 +15,7 @@ Browser page → POST /chat → FastAPI → HTTP request to vLLM → answer on t
 - `backend/src/qwen_harness/schemas/chat_request.py` describes the JSON the browser sends.
 - `backend/src/qwen_harness/schemas/chat_response.py` describes the JSON the browser receives.
 - `backend/src/qwen_harness/call_qwen_server.py` makes the outgoing HTTP request to the separate vLLM server running Qwen, then extracts the answer text.
-- `backend/request-flow.html` is a guided visual map of the request path, source files, values, and error branches. In VS Code, right-click the file and choose **Open in Integrated Browser**. It works directly from the file; the map sends no requests.
+- `backend/request-flow.html` is an interactive map of the request path, source files, values, and error branches. In VS Code, right-click the file and choose **Open in Integrated Browser**. Click boxes and wires to inspect them; drag or zoom the map to explore it. The map uses only the HTML file and sends no requests.
 - `backend/pyproject.toml` lists the Python packages; `backend/uv.lock` fixes their resolved versions.
 
 FastAPI's [multiple-file guide](https://fastapi.tiangolo.com/tutorial/bigger-applications/) uses `APIRouter` and `include_router()` for this split. That mechanism is from FastAPI. The folder names `routes/` and `schemas/` are our organizational choice; FastAPI's guide calls the route folder `routers/` and does not require a separate `schemas/` folder. `call_qwen_server.py` sits beside `main.py` because it is the only outgoing service call so far.
