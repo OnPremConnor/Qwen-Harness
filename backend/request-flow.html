@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Qwen Harness · Request flow</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #0b1018; color: #e7edf6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(circle at 82% 4%, #192b3b 0, transparent 34rem), #0b1018; }
+    button, a { font: inherit; }
+    button { cursor: pointer; }
+    a { color: #8bd8e4; text-underline-offset: .2em; }
+    :focus-visible { outline: 2px solid #f3b864; outline-offset: 3px; }
+    .wrap { width: min(1320px, calc(100% - 40px)); margin: auto; padding: 32px 0 64px; }
+    .eyebrow { color: #70d2d5; font-size: .75rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 10px 0; font-size: clamp(2rem, 5vw, 3.6rem); letter-spacing: -.055em; line-height: 1.06; }
+    h2, h3, p { margin-top: 0; }
+    .intro { max-width: 740px; color: #b6c3d1; font-size: 1.05rem; line-height: 1.6; }
+    .boundaries { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 12px; align-items: center; }
+    .boundary { border: 1px solid #304251; background: #17222e; border-radius: 999px; padding: 9px 14px; font-size: .86rem; font-weight: 650; }
+    .arrow { color: #f3b864; font-weight: 900; }
+    .notice { color: #9fb0c2; font-size: .85rem; margin-bottom: 30px; }
+    .section-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .14em; color: #9bacc0; font-weight: 800; margin-bottom: 12px; }
+    .scenarios { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 28px; }
+    .scenarios button, .controls button, .term-buttons button { border: 1px solid #314453; border-radius: 10px; background: #16212c; color: #d8e4ee; padding: 10px 14px; }
+    .scenarios button[aria-pressed="true"], .term-buttons button[aria-pressed="true"] { background: #224a52; border-color: #75d5d9; color: white; }
+    .layout { display: grid; grid-template-columns: minmax(240px, 310px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .panel { border: 1px solid #2a3b4a; background: #121b26; border-radius: 18px; box-shadow: 0 18px 50px #050a1245; }
+    .steps-panel { padding: 18px; max-height: calc(100vh - 32px); overflow: auto; position: sticky; top: 16px; }
+    .progress { display: flex; justify-content: space-between; gap: 10px; font-size: .8rem; color: #a9b9c8; margin: 2px 0 12px; }
+    .progress-track { height: 5px; background: #293847; border-radius: 99px; margin-bottom: 18px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; background: #72d3d7; transition: width .2s ease; }
+    .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    .steps li { margin: 0; }
+    .step-button { width: 100%; display: grid; grid-template-columns: 27px 1fr; gap: 10px; align-items: start; padding: 11px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #a8b8c8; text-align: left; }
+    .step-button:hover { background: #1b2936; }
+    .step-button[aria-current="step"] { background: #203742; color: #fff; border-color: #4d8e98; }
+    .step-number { display: inline-grid; place-items: center; height: 25px; width: 25px; border-radius: 8px; background: #293d4a; color: #d7e5ee; font-size: .75rem; font-weight: 800; }
+    .step-title { display: block; font-size: .9rem; font-weight: 750; line-height: 1.25; }
+    .step-layer { display: block; margin-top: 4px; font-size: .72rem; color: #8ea8ba; }
+    .detail { padding: clamp(20px, 4vw, 36px); min-height: 620px; }
+    .detail-top { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; align-items: start; }
+    .tag { display: inline-block; border: 1px solid #3f6370; color: #88e0df; border-radius: 999px; padding: 6px 10px; font-size: .73rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
+    .step-counter { color: #9fb3c5; font-size: .8rem; }
+    .detail h2 { font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -.035em; margin: 16px 0 10px; }
+    .explain { color: #c4d1df; line-height: 1.65; font-size: 1rem; max-width: 70ch; }
+    .source { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; border: 1px solid #304252; border-radius: 12px; padding: 14px; background: #172532; margin: 22px 0; }
+    .source strong { font-size: .78rem; color: #a3b6c6; text-transform: uppercase; letter-spacing: .08em; }
+    .source a { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .87rem; }
+    .source .fn { color: #f3c47e; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; }
+    .io { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
+    .io-card { border: 1px solid #2d4252; border-radius: 12px; padding: 14px; background: #101923; }
+    .io-card .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: #96acbf; font-weight: 800; margin-bottom: 9px; }
+    .io-card code { color: #e8f0f7; font-size: .83rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .code-label { color: #9db0c1; text-transform: uppercase; font-size: .72rem; letter-spacing: .1em; font-weight: 800; margin: 24px 0 9px; }
+    pre { border: 1px solid #304354; border-radius: 13px; background: #090f16; padding: 17px; margin: 0; overflow-x: auto; white-space: pre-wrap; color: #d8e7ee; line-height: 1.55; font-size: .84rem; }
+    .takeaway { border-left: 3px solid #f3b864; padding: 9px 0 9px 15px; margin: 22px 0; color: #ecd8b8; line-height: 1.55; }
+    .controls { display: flex; justify-content: space-between; gap: 10px; margin-top: 24px; }
+    .controls button { min-width: 118px; font-weight: 750; }
+    .controls button:last-child { background: #255a62; border-color: #6cc8cb; color: white; }
+    button:disabled { opacity: .42; cursor: not-allowed; }
+    .lower { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+    .lower .panel { padding: 22px; }
+    .lower h3 { margin: 0 0 8px; }
+    .lower p { color: #aebfce; line-height: 1.55; font-size: .89rem; }
+    .term-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+    .term-buttons button { padding: 7px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .78rem; }
+    .term-text { min-height: 72px; color: #d6e3ed !important; }
+    .small { font-size: .8rem !important; color: #90a9bc !important; }
+    @media (max-width: 850px) { .layout, .lower { grid-template-columns: 1fr; } .steps-panel { position: static; max-height: 240px; } .detail { min-height: 0; } }
+    @media (max-width: 540px) { .wrap { width: min(100% - 22px, 1320px); padding-top: 22px; } .io { grid-template-columns: 1fr; } .detail { padding: 18px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Qwen Harness / backend / guided code map</div>
+      <h1>Follow one request<br>from beginning to end.</h1>
+      <p class="intro">Choose a path, then move through the actual files and functions. The left side keeps your place. The right side shows the data, the relevant code, and what that code causes next.</p>
+      <div class="boundaries" aria-label="Request boundaries">
+        <span class="boundary">Browser · JavaScript</span><span class="arrow">→</span>
+        <span class="boundary">FastAPI · Python</span><span class="arrow">→</span>
+        <span class="boundary">vLLM · Qwen</span><span class="arrow">→</span>
+        <span class="boundary">Browser · JavaScript</span>
+      </div>
+      <p class="notice">A map of the current text-only baseline. Chat bubbles live in the open page; there is no account, chat history, or database in this flow. The map does not send live requests.</p>
+    </header>
+
+    <section aria-label="Choose a request path">
+      <div class="section-label">Choose what happens</div>
+      <div class="scenarios" id="scenarios"></div>
+    </section>
+
+    <main class="layout">
+      <nav class="panel steps-panel" aria-label="Steps in selected path">
+        <div class="progress"><strong id="path-name"></strong><span id="progress-text"></span></div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <ol class="steps" id="steps"></ol>
+      </nav>
+      <article class="panel detail" aria-live="polite">
+        <div class="detail-top"><span class="tag" id="layer"></span><span class="step-counter" id="step-counter"></span></div>
+        <h2 id="title"></h2>
+        <p class="explain" id="explain"></p>
+        <div class="source"><strong>Open the source</strong><a id="file-link" target="_blank" rel="noopener"></a><span class="fn" id="function-name"></span></div>
+        <div class="io"><div class="io-card"><div class="label">Data coming in</div><code id="input"></code></div><div class="io-card"><div class="label">Data going out</div><code id="output"></code></div></div>
+        <div class="code-label">Relevant code in that file</div>
+        <pre><code id="code"></code></pre>
+        <p class="takeaway" id="takeaway"></p>
+        <div class="controls"><button id="previous" type="button">← Previous</button><button id="next" type="button">Next →</button></div>
+      </article>
+    </main>
+
+    <section class="lower" aria-label="Learning aids">
+      <div class="panel">
+        <h3>Syntax lens</h3>
+        <p>Click a keyword when you see it in a step. The language matters: Python and browser JavaScript use different error handling.</p>
+        <div class="term-buttons" id="terms"></div>
+        <p class="term-text" id="term-text" aria-live="polite"></p>
+      </div>
+      <div class="panel">
+        <h3>Keep the boundaries straight</h3>
+        <p><strong>Before a question:</strong> Uvicorn imports <code>main.py</code>. FastAPI registers the routes. A <code>GET /</code> loads <code>index.html</code>. Those setup actions do not rerun for every chat message.</p>
+        <p><strong>For each question:</strong> the browser sends <code>POST /chat</code>. The Python route calls the local model server through another HTTP request. Only the current question goes to Qwen.</p>
+        <p class="small">Source links are relative to this file. Open this HTML file with VS Code’s “Open in Integrated Browser” command, then keep the source files beside it as you step through.</p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // This is a teaching map of source code, not part of the running chat app.
+    const files = {
+      main: { label: 'backend/src/qwen_harness/main.py', href: 'src/qwen_harness/main.py' },
+      page: { label: 'backend/src/qwen_harness/routes/page.py', href: 'src/qwen_harness/routes/page.py' },
+      frontend: { label: 'frontend/index.html', href: '../frontend/index.html' },
+      request: { label: 'backend/src/qwen_harness/schemas/chat_request.py', href: 'src/qwen_harness/schemas/chat_request.py' },
+      chat: { label: 'backend/src/qwen_harness/routes/chat.py', href: 'src/qwen_harness/routes/chat.py' },
+      qwen: { label: 'backend/src/qwen_harness/call_qwen_server.py', href: 'src/qwen_harness/call_qwen_server.py' },
+      response: { label: 'backend/src/qwen_harness/schemas/chat_response.py', href: 'src/qwen_harness/schemas/chat_response.py' },
+    }
+
+    const steps = {
+      register: {
+        title: 'The app registers its routes', layer: 'Setup · Python', file: 'main', fn: 'app.include_router(...)',
+        explain: 'When Uvicorn starts, it imports this module. FastAPI learns which function handles the page and which handles chat. This happens at startup, before any question is sent.',
+        input: 'page_router + chat_router', output: 'GET / and POST /chat are available',
+        code: 'app = FastAPI()\napp.include_router(page_router)\napp.include_router(chat_router)',
+        takeaway: 'A registered route is a rule for future requests. Registering it does not call Qwen.'
+      },
+      page: {
+        title: 'The browser loads the page', layer: 'Page load · Python → browser', file: 'page', fn: 'chat_page()',
+        explain: 'The browser requests the home page. FastAPI calls chat_page, and FileResponse sends the saved frontend file back. The browser then runs the JavaScript inside that file.',
+        input: 'GET /', output: 'frontend/index.html',
+        code: '@router.get("/", include_in_schema=False)\ndef chat_page() -> FileResponse:\n    return FileResponse(PAGE)',
+        takeaway: 'This page request is separate from the later POST /chat request.'
+      },
+      submit: {
+        title: 'The user submits a question', layer: 'Browser · JavaScript', file: 'frontend', fn: "composer submit listener",
+        explain: 'The form submit event starts an async JavaScript function. preventDefault stops the browser’s normal form navigation. trim removes whitespace around the typed text.',
+        input: 'Text box: "  Explain FastAPI  "', output: 'question = "Explain FastAPI"',
+        code: "document.getElementById('composer').addEventListener('submit', async event => {\n  event.preventDefault()\n  const question = input.value.trim()",
+        takeaway: 'The async keyword belongs to JavaScript here. No Python code has run yet.'
+      },
+      guard: {
+        title: 'The browser checks the text', layer: 'Browser · JavaScript', file: 'frontend', fn: "composer submit listener",
+        explain: 'If the trimmed question is empty, or a reply is already pending, return ends this event handler immediately. A real question continues and gets a temporary bubble on the page.',
+        input: 'question = "Explain FastAPI"; waiting = false', output: 'Continue; display temporary bubbles',
+        code: "if (!question || waiting) return\n\nconst userBubble = showMessage('user', question)\nconst note = showMessage('assistant', 'Qwen is replying…')",
+        takeaway: 'The visible bubble is only a browser element. It is not saved to a database.', term: 'ifnot'
+      },
+      blankBrowser: {
+        title: 'Empty browser input stops here', layer: 'Browser · JavaScript', file: 'frontend', fn: "composer submit listener",
+        explain: 'After trim, spaces alone become an empty string. !question is true, so return stops the handler. There is no fetch, no POST /chat, and no model call. The form also has a required field, which may stop submission even earlier.',
+        input: 'Text box: "   " → question = ""', output: 'No HTTP request',
+        code: "const question = input.value.trim()\nif (!question || waiting) return",
+        takeaway: 'A browser guard protects this interface; the Python guard still protects the API from other callers.', term: 'ifnot'
+      },
+      fetch: {
+        title: 'The browser sends POST /chat', layer: 'Browser → FastAPI · HTTP', file: 'frontend', fn: "composer submit listener",
+        explain: 'fetch starts an HTTP request containing JSON with only the current question. await pauses this one async handler until the browser has an HTTP response. The browser itself can continue doing other work.',
+        input: 'question = "Explain FastAPI"', output: '{"message":"Explain FastAPI"} → POST /chat',
+        code: "const response = await fetch('/chat', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ message: question }),\n})",
+        takeaway: 'This is the first HTTP exchange: browser to FastAPI. Earlier bubbles are not in the JSON.', term: 'await'
+      },
+      schema: {
+        title: 'FastAPI reads the request shape', layer: 'FastAPI · Python', file: 'request', fn: 'ChatRequest',
+        explain: 'FastAPI reads the incoming JSON and constructs a ChatRequest object before calling answer_question. The schema says that message must be a string. An invalid or missing field is rejected by FastAPI before the route function runs.',
+        input: '{"message":"Explain FastAPI"}', output: 'ChatRequest(message="Explain FastAPI")',
+        code: 'class ChatRequest(BaseModel):\n    message: str',
+        takeaway: 'A schema describes the expected data. It does not send the request or call Qwen.'
+      },
+      directSchema: {
+        title: 'A direct API caller sends blanks', layer: 'FastAPI · Python', file: 'request', fn: 'ChatRequest',
+        explain: 'Another caller can send valid JSON with a string made only of spaces. That satisfies the schema because it is still a string. FastAPI creates the object and enters the chat route.',
+        input: '{"message":"   "} → POST /chat', output: 'ChatRequest(message="   ")',
+        code: 'class ChatRequest(BaseModel):\n    message: str',
+        takeaway: 'Type checking and meaningful-text checking answer different questions.'
+      },
+      route: {
+        title: 'The route checks for meaningful text', layer: 'FastAPI · Python', file: 'chat', fn: 'answer_question(request)',
+        explain: 'The route strips whitespace again. If the result is empty, it raises an HTTP error. A nonempty message continues to the model call inside try.',
+        input: 'ChatRequest(message="Explain FastAPI")', output: 'message = "Explain FastAPI"; continue',
+        code: 'message = request.message.strip()\nif not message:\n    raise HTTPException(status_code=422, detail="The message must contain text")\n\ntry:\n    answer = get_qwen_answer(message)',
+        takeaway: 'if not message means “if this string is empty.” raise stops the function immediately.', term: 'ifnot'
+      },
+      routeBlank: {
+        title: 'The route rejects blank text', layer: 'FastAPI · Python', file: 'chat', fn: 'answer_question(request)',
+        explain: 'strip turns spaces into an empty string. Python treats the empty string as false, so not message is true. raise stops this function, and FastAPI makes a client-error HTTP response. get_qwen_answer is never called.',
+        input: 'request.message = "   "', output: 'HTTP 422; no model request',
+        code: 'message = request.message.strip()\nif not message:\n    raise HTTPException(status_code=422, detail="The message must contain text")',
+        takeaway: 'The route handles a caller that bypasses the browser’s own empty-input check.', term: 'raise'
+      },
+      call: {
+        title: 'Python calls the Qwen helper', layer: 'FastAPI · Python', file: 'chat', fn: 'answer_question(request)',
+        explain: 'Inside try, the route calls get_qwen_answer like a regular Python function. It waits for that function to return a string or raise an exception. This Python route uses def, so there is no await here.',
+        input: 'message = "Explain FastAPI"', output: 'Call get_qwen_answer(message)',
+        code: 'try:\n    answer = get_qwen_answer(message)\nexcept (httpx.HTTPError, QwenReplyError):\n    raise HTTPException(status_code=502, detail="Qwen could not complete the reply")',
+        takeaway: 'try marks the code whose listed errors the route knows how to handle.', term: 'try'
+      },
+      model: {
+        title: 'HTTPX contacts local vLLM', layer: 'Python → vLLM · HTTP', file: 'qwen', fn: 'get_qwen_answer(question)',
+        explain: 'HTTPX sends another HTTP request to the local model server. The messages list contains one user message: this question. stream is false, so the function waits for a complete reply. If vLLM responds with an HTTP error, raise_for_status raises an HTTPX exception.',
+        input: 'question = "Explain FastAPI"', output: 'POST to local vLLM; HTTPX response or error',
+        code: 'response = httpx.post(\n    QWEN_SERVER_URL,\n    json={\n        "model": QWEN_MODEL,\n        "messages": [{"role": "user", "content": question}],\n        "reasoning_effort": "low",\n        "stream": False,\n    },\n    timeout=600.0,  # Seconds to wait for one complete model reply.\n)\nresponse.raise_for_status()',
+        takeaway: 'This is the second HTTP exchange: FastAPI to vLLM. HTTPX is synchronous in this code.', term: 'raise'
+      },
+      parse: {
+        title: 'The helper extracts the answer', layer: 'FastAPI · Python', file: 'qwen', fn: 'get_qwen_answer(question)',
+        explain: 'response.json turns the vLLM response body into Python data. The nested lookup finds the first choice’s message content. The except handles malformed JSON or missing fields. A separate check rejects content that is not meaningful text.',
+        input: 'HTTPX response containing choices', output: 'answer string, for example "FastAPI is…"',
+        code: 'try:\n    reply_data = response.json()\n    answer = reply_data["choices"][0]["message"]["content"]\nexcept (KeyError, IndexError, TypeError, ValueError) as error:\n    raise QwenReplyError("Qwen returned an unreadable reply") from error\n\nif not isinstance(answer, str) or not answer.strip():\n    raise QwenReplyError("Qwen returned no answer text")\nreturn answer.strip()',
+        takeaway: 'The helper returns a Python string only after it has found usable answer text.', term: 'except'
+      },
+      modelFailure: {
+        title: 'An HTTPX error leaves the helper', layer: 'Python · error path', file: 'qwen', fn: 'get_qwen_answer(question)',
+        explain: 'If the local model server cannot be reached, httpx.post raises an HTTPX error. If vLLM sends an error status, raise_for_status raises one. There is no matching except in this helper for those errors, so the error travels back to answer_question.',
+        input: 'vLLM connection failure or error HTTP status', output: 'httpx.HTTPError travels to routes/chat.py',
+        code: 'response = httpx.post(\n    QWEN_SERVER_URL,\n    json={\n        "model": QWEN_MODEL,\n        "messages": [{"role": "user", "content": question}],\n        "reasoning_effort": "low",\n        "stream": False,\n    },\n    timeout=600.0,  # Seconds to wait for one complete model reply.\n)\nresponse.raise_for_status()',
+        takeaway: 'An exception interrupts the ordinary return path; the next matching except gets control.', term: 'except'
+      },
+      unreadable: {
+        title: 'An unusable reply becomes QwenReplyError', layer: 'Python · error path', file: 'qwen', fn: 'get_qwen_answer(question)',
+        explain: 'A malformed JSON shape enters the except and raises QwenReplyError. A missing, non-string, or whitespace-only content field also raises QwenReplyError. That error travels back to the chat route.',
+        input: 'vLLM replied, but no usable answer text', output: 'QwenReplyError travels to routes/chat.py',
+        code: 'except (KeyError, IndexError, TypeError, ValueError) as error:\n    raise QwenReplyError("Qwen returned an unreadable reply") from error\n\nif not isinstance(answer, str) or not answer.strip():\n    raise QwenReplyError("Qwen returned no answer text")',
+        takeaway: 'from error keeps the original parsing problem attached for debugging.', term: 'raise'
+      },
+      routeReturn: {
+        title: 'The helper returns to the route', layer: 'FastAPI · Python', file: 'chat', fn: 'answer_question(request)',
+        explain: 'get_qwen_answer has returned a string, so the route skips except. It constructs a ChatResponse object with that string and returns it to FastAPI.',
+        input: 'answer = "FastAPI is…"', output: 'ChatResponse(answer="FastAPI is…")',
+        code: 'try:\n    answer = get_qwen_answer(message)\nexcept (httpx.HTTPError, QwenReplyError):\n    raise HTTPException(status_code=502, detail="Qwen could not complete the reply")\n\nreturn ChatResponse(answer=answer)',
+        takeaway: 'Once the helper returns normally, Python continues below the try/except and reaches return.', term: 'return'
+      },
+      routeError: {
+        title: 'The route turns the error into HTTP 502', layer: 'FastAPI · Python', file: 'chat', fn: 'answer_question(request)',
+        explain: 'The route’s except catches either the HTTPX error or QwenReplyError from the helper. It raises HTTPException. FastAPI sends the browser an error response instead of a ChatResponse.',
+        input: 'httpx.HTTPError or QwenReplyError', output: 'HTTP 502 with an error detail',
+        code: 'except (httpx.HTTPError, QwenReplyError):\n    raise HTTPException(status_code=502, detail="Qwen could not complete the reply")',
+        takeaway: 'The except runs only for the named exception types, and raise ends the route.', term: 'except'
+      },
+      responseSchema: {
+        title: 'The route builds the answer response', layer: 'FastAPI · Python', file: 'response', fn: 'ChatResponse',
+        explain: 'The ChatResponse class defines an answer string field. The route just constructed one. FastAPI serializes that returned object as JSON for the browser.',
+        input: 'ChatResponse(answer="FastAPI is…")', output: '{"answer":"FastAPI is…"}',
+        code: 'class ChatResponse(BaseModel):\n    # FastAPI sends this field as {"answer": "..."} in the HTTP response.\n    answer: str',
+        takeaway: 'return hands a value back to FastAPI; it does not directly edit the browser page.', term: 'return'
+      },
+      browserAnswer: {
+        title: 'The browser shows the answer', layer: 'Browser · JavaScript', file: 'frontend', fn: "composer submit listener",
+        explain: 'The paused fetch resumes when the HTTP response arrives. response.ok is true for the successful response. await response.json reads and parses the body. The script replaces the temporary “Qwen is replying” text with the answer.',
+        input: 'HTTP 200; {"answer":"FastAPI is…"}', output: 'Assistant bubble displays the answer',
+        code: "if (!response.ok) throw new Error('Qwen could not complete the reply')\nconst result = await response.json()\nnote.textContent = result.answer\ninput.value = ''",
+        takeaway: 'This second await is for reading the browser response body; it does not call Qwen again.', term: 'await'
+      },
+      browserError: {
+        title: 'The browser handles the failed request', layer: 'Browser · JavaScript', file: 'frontend', fn: "composer submit listener",
+        explain: 'fetch resolves with an HTTP response even when its status is an error. response.ok is false, so throw moves execution to catch. The script removes the temporary bubbles, leaves the question in the input, and shows an error message.',
+        input: 'HTTP 502 from FastAPI', output: 'Error shown; question remains for retry',
+        code: "if (!response.ok) throw new Error('Qwen could not complete the reply')\n// ...\n} catch (error) {\n  userBubble.remove()\n  note.remove()\n  status.textContent = error.message\n}",
+        takeaway: 'JavaScript uses catch; Python uses except. Both react to an error thrown or raised earlier.', term: 'try'
+      },
+      finish: {
+        title: 'The browser unlocks Send', layer: 'Browser · JavaScript', file: 'frontend', fn: "composer submit listener",
+        explain: 'finally runs after either the successful answer or the browser’s catch block. It clears the waiting flag and enables the Send button so another question can be submitted.',
+        input: 'Success or error path completed', output: 'Send button usable again',
+        code: '} finally {\n  waiting = false\n  sendButton.disabled = false\n  input.focus()\n}',
+        takeaway: 'The next question starts a fresh model request. Visible old bubbles are not sent with it.', term: 'finally'
+      },
+    }
+
+    const paths = [
+      { id: 'success', name: 'Successful answer', ids: ['register', 'page', 'submit', 'guard', 'fetch', 'schema', 'route', 'call', 'model', 'parse', 'routeReturn', 'responseSchema', 'browserAnswer', 'finish'] },
+      { id: 'blankBrowser', name: 'Blank browser input', ids: ['register', 'page', 'submit', 'blankBrowser'] },
+      { id: 'blankApi', name: 'Blank direct API call', ids: ['register', 'directSchema', 'routeBlank'] },
+      { id: 'modelFailure', name: 'Model server fails', ids: ['register', 'page', 'submit', 'guard', 'fetch', 'schema', 'route', 'call', 'modelFailure', 'routeError', 'browserError', 'finish'] },
+      { id: 'unreadable', name: 'Qwen reply unreadable', ids: ['register', 'page', 'submit', 'guard', 'fetch', 'schema', 'route', 'call', 'model', 'unreadable', 'routeError', 'browserError', 'finish'] },
+    ]
+
+    const terms = {
+      await: 'JavaScript only in this app: await pauses the current async submit handler until a Promise settles. It does not freeze the whole browser. The Python route is a regular def function and has no await.',
+      ifnot: 'Python “if not message” is true when message is an empty string. JavaScript “!question” is the same kind of empty-value check. strip() and trim() remove surrounding whitespace first.',
+      try: 'try marks code that might fail. In Python, a matching except receives a raised exception. In JavaScript, catch receives a thrown error (including one thrown after a bad HTTP status).',
+      except: 'Python checks whether the raised error matches the types in except (...). If it does, that block runs. An error with no matching handler travels back to the caller.',
+      raise: 'Python raise stops the current normal path and creates an exception. HTTPException is special to FastAPI: it becomes an HTTP error response. JavaScript uses throw for a similar control-flow jump.',
+      return: 'return ends a function and gives a value to its caller. Returning ChatResponse gives FastAPI data to serialize; it does not directly change the page.',
+      finally: 'JavaScript finally runs after the try or catch path. This app uses it to make the Send button usable after success or failure.',
+    }
+
+    const byId = id => document.getElementById(id)
+    let pathIndex = 0
+    let stepIndex = 0
+    let selectedTerm = 'await'
+
+    function renderTerm() {
+      byId('term-text').textContent = terms[selectedTerm]
+      for (const button of byId('terms').children) button.setAttribute('aria-pressed', String(button.dataset.term === selectedTerm))
+    }
+
+    function render() {
+      const path = paths[pathIndex]
+      const step = steps[path.ids[stepIndex]]
+      const file = files[step.file]
+
+      byId('path-name').textContent = path.name
+      byId('progress-text').textContent = `${stepIndex + 1} / ${path.ids.length}`
+      byId('progress-fill').style.width = `${((stepIndex + 1) / path.ids.length) * 100}%`
+      byId('step-counter').textContent = `Step ${stepIndex + 1} of ${path.ids.length}`
+      byId('layer').textContent = step.layer
+      byId('title').textContent = step.title
+      byId('explain').textContent = step.explain
+      byId('file-link').textContent = file.label
+      byId('file-link').href = file.href
+      byId('function-name').textContent = step.fn
+      byId('input').textContent = step.input
+      byId('output').textContent = step.output
+      byId('code').textContent = step.code
+      byId('takeaway').textContent = step.takeaway
+      byId('previous').disabled = stepIndex === 0
+      byId('next').disabled = stepIndex === path.ids.length - 1
+      if (step.term) selectedTerm = step.term
+      renderTerm()
+
+      byId('steps').replaceChildren()
+      path.ids.forEach((id, index) => {
+        const item = document.createElement('li')
+        const button = document.createElement('button')
+        button.className = 'step-button'
+        button.type = 'button'
+        if (index === stepIndex) button.setAttribute('aria-current', 'step')
+        const number = document.createElement('span')
+        number.className = 'step-number'
+        number.textContent = index + 1
+        const words = document.createElement('span')
+        const title = document.createElement('span')
+        title.className = 'step-title'
+        title.textContent = steps[id].title
+        const layer = document.createElement('span')
+        layer.className = 'step-layer'
+        layer.textContent = steps[id].layer
+        words.append(title, layer)
+        button.append(number, words)
+        button.addEventListener('click', () => { stepIndex = index; render() })
+        item.append(button)
+        byId('steps').append(item)
+      })
+    }
+
+    paths.forEach((path, index) => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.textContent = path.name
+      button.setAttribute('aria-pressed', String(index === pathIndex))
+      button.addEventListener('click', () => {
+        pathIndex = index
+        stepIndex = 0
+        for (const choice of byId('scenarios').children) choice.setAttribute('aria-pressed', String(choice === button))
+        render()
+      })
+      byId('scenarios').append(button)
+    })
+
+    Object.keys(terms).forEach(term => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.dataset.term = term
+      button.textContent = term === 'ifnot' ? 'if not / !' : term
+      button.addEventListener('click', () => { selectedTerm = term; renderTerm() })
+      byId('terms').append(button)
+    })
+
+    byId('previous').addEventListener('click', () => { if (stepIndex > 0) { stepIndex--; render() } })
+    byId('next').addEventListener('click', () => { if (stepIndex < paths[pathIndex].ids.length - 1) { stepIndex++; render() } })
+    document.addEventListener('keydown', event => {
+      if (event.target instanceof HTMLElement && ['BUTTON', 'INPUT', 'TEXTAREA'].includes(event.target.tagName)) return
+      if (event.key === 'ArrowRight' && stepIndex < paths[pathIndex].ids.length - 1) { stepIndex++; render() }
+      if (event.key === 'ArrowLeft' && stepIndex > 0) { stepIndex--; render() }
+    })
+    render()
+  </script>
+</body>
+</html>

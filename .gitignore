@@ -20,6 +20,3 @@ dist/
 .env
 .env.*
 !.env.example
-
-# SQLite chat data lives on this machine; schema.sql is tracked separately.
-backend/data/*.db*
