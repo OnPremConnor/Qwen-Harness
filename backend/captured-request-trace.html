@@ -62,7 +62,7 @@
 <div class="page">
   <p class="eyebrow">Qwen Harness · one real request</p>
   <h1>One real question, hop by hop</h1>
-  <p class="lead">A snapshot of the code at commit <code>e9abddb</code>. Steps 1 to 6 were recorded at 00:05 on 2026-11-01 (Eastern time) with that code, where the browser key, vLLM's reply and the Python reply variables all use the name <code>content</code>. Every block there came from that run, not from an example. The timing section also uses two earlier runs from 21:26 on 2026-10-31, recorded before the renames. A cold start cannot be repeated without restarting the model, so that evidence is kept. When the code changes, the line numbers on this page stop matching it; <code>git show e9abddb:&lt;path&gt;</code> prints the exact code this page describes.</p>
+  <p class="lead">A snapshot of the code at commit <code>e9abddb</code>. Steps 1 to 6 were recorded at 00:05 on 2026-11-01 (Eastern time) with that code. Every block there came from that run, not from an example. The timing section also uses two earlier runs from 21:26 on 2026-10-31, made with older variable names. A cold start cannot be repeated without restarting the model, so that evidence is kept. When the code changes, the line numbers on this page stop matching it; <code>git show e9abddb:&lt;path&gt;</code> prints the exact code this page describes.</p>
 
   <div class="box">
     <strong>Question sent:</strong> <code>In one sentence, what is a hash map?</code>
@@ -97,7 +97,7 @@ Content-Length: 50
     <pre><code>request          →  a ChatRequest object FastAPI built from the JSON
 request.content  →  "In one sentence, what is a hash map?"
 question = request.content.strip()   # routes/chat.py line 16</code></pre>
-    <p class="notice"><strong>Python detail you practiced:</strong> <code>request.content</code> has no parentheses, so it is an <em>attribute</em>, a value stored on the object. <code>.strip()</code> has parentheses, so it is a <em>method</em>, and Python passes the string in front of the dot in as <code>self</code>. <code>request.content.strip()</code> does the same work as <code>str.strip(request.content)</code>. Here <code>strip()</code> removed nothing, because the question had no extra spaces. The result is stored in <code>question</code>, not <code>content</code>, because this same function later holds the model's reply in a variable named <code>content</code> (line 25), and one variable cannot hold both texts.</p>
+    <p class="notice"><strong>Python detail:</strong> <code>request.content</code> has no parentheses, so it is an <em>attribute</em>, a value stored on the object. <code>.strip()</code> has parentheses, so it is a <em>method</em>, and Python passes the string in front of the dot in as <code>self</code>. <code>request.content.strip()</code> does the same work as <code>str.strip(request.content)</code>. Here <code>strip()</code> removed nothing, because the question had no extra spaces. The result is stored in <code>question</code>, not <code>content</code>, because this same function later holds the model's reply in a variable named <code>content</code> (line 25), and one variable cannot hold both texts.</p>
   </section>
 
   <!-- HOP 3 -->
@@ -186,7 +186,7 @@ content-type: application/json</code></pre>
     <pre><code>&quot;\n\nA hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.&quot;</code></pre>
     <div class="label">What <code>content.strip()</code> returned (line 40)</div>
     <pre><code>A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.</code></pre>
-    <p class="notice">This is the real reason for <code>.strip()</code>: the model's text started with 2 newline characters (the <code>\n\n</code> at the front). Why the model starts that way is not explained by this capture; a likely cause is the blank line it writes after its thinking, but I did not verify that.</p>
+    <p class="notice">This is the real reason for <code>.strip()</code>: the model's text started with 2 newline characters (the <code>\n\n</code> at the front). Why the model starts that way is not explained by this capture; a likely cause is the blank line it writes after its thinking, but this capture does not test that.</p>
     <div class="label">Walk the real object one bracket at a time (the real captured reply, run with the harness's own Python)</div>
     <pre><code>&gt;&gt;&gt; data = json.loads(reply_text)
 &gt;&gt;&gt; type(data)
@@ -269,9 +269,9 @@ $ curl -X POST http://127.0.0.1:8001/chat -H &#x27;Content-Type: application/jso
 {&quot;detail&quot;:&quot;The content must contain text&quot;}
 HTTP status: 422</code></pre>
     <p class="notice">Both replies are HTTP status 422, but they come from two different places. The first is the <code>ChatRequest</code> class rejecting a body without the key <code>content</code> (see <code>"loc":["body","content"]</code>: the class's own field name), before <code>answer_question()</code> even starts. The second is your own <code>if not question:</code> and <code>raise HTTPException(status_code=422, …)</code> at <code>routes/chat.py</code> lines 19–21, which runs only after the class accepted the body. This is how the keyword <code>raise</code> changes what the whole system does: it stops the function and becomes an HTTP error the browser sees.</p>
-    <div class="box"><strong>Why one name, <code>content</code>, from end to end (your decisions, 2026-10-31 and 2026-11-01)</strong>
+    <div class="box"><strong>Why one name, <code>content</code>, from end to end</strong>
       <ul>
-        <li><strong>The reason:</strong> you want to read the code against vLLM's own documentation and names, without keeping a glossary of names we invented.</li>
+        <li><strong>The reason:</strong> the code can be read against vLLM's own documentation and names, without keeping a glossary of invented names.</li>
         <li><strong>The trade-off to know:</strong> the word no longer says which direction the text is travelling. The path in front of it does. <code>choices[0].message.content</code> is text coming <em>in</em> from the model. <code>ChatResponse(content=…)</code> and <code>result.content</code> are text going <em>out</em> to the browser. Read the path, not just the word.</li>
         <li><strong>Both directions use it:</strong> the browser sends <code>{"content": …}</code> in (<code>ChatRequest</code>) and receives <code>{"content": …}</code> back (<code>ChatResponse</code>), the same word vLLM uses in its own request and reply. Which class you are looking at says which way the text is going.</li>
         <li><strong>One consequence:</strong> inside <code>answer_question()</code>, which handles both texts, the incoming text is named <code>question</code> and the reply is named <code>content</code>. Giving both the same variable name would make the reply overwrite the question.</li>
