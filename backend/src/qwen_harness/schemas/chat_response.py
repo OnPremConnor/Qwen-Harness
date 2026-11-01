@@ -4,5 +4,5 @@ from pydantic import BaseModel
 
 
 class ChatResponse(BaseModel):
-    # FastAPI sends this field as {"answer": "..."} in the HTTP response.
-    answer: str
+    # FastAPI sends this field as {"content": "..."} in the HTTP response.
+    content: str

@@ -5,23 +5,22 @@ A small local page for sending text to the Qwen model running separately in Dock
 ## What exists now
 
 ```text
-Browser page → POST /chat → FastAPI → HTTP request to vLLM → answer on the page
+Browser page → POST /chat → FastAPI → HTTP request to vLLM → content on the page
 ```
 
 - `frontend/index.html` contains the plain HTML, CSS, and JavaScript page.
 - `backend/src/qwen_harness/main.py` creates the app and attaches its route groups.
 - `backend/src/qwen_harness/routes/page.py` serves the browser page.
-- `backend/src/qwen_harness/routes/chat.py` receives a question, calls Qwen, and returns its answer.
+- `backend/src/qwen_harness/routes/chat.py` receives a question, calls the model server, and returns its content.
 - `backend/src/qwen_harness/schemas/chat_request.py` describes the JSON the browser sends.
 - `backend/src/qwen_harness/schemas/chat_response.py` describes the JSON the browser receives.
-- `backend/src/qwen_harness/call_qwen_server.py` makes the outgoing HTTP request to the separate vLLM server running Qwen, then extracts the answer text.
-- `backend/request-flow.html` is an interactive map of the request path, source files, values, and error branches. In VS Code, right-click the file and choose **Open in Integrated Browser**. Click boxes and wires to inspect them; drag or zoom the map to explore it. The map uses only the HTML file and sends no requests.
-- `backend/captured-request-trace.html` shows one real question recorded on 2026-10-31: the actual JSON, headers, sizes, token counts, log lines, and timings at each step, tied to the source line responsible. It is a snapshot, not a live view; open it the same way as the map above.
+- `backend/src/qwen_harness/call_model_server.py` makes the outgoing HTTP request to the separate model server (today vLLM running Qwen), then extracts the reply's `content` text.
+- `backend/captured-request-trace.html` shows one real question recorded on 2026-10-31: the actual JSON, headers, sizes, token counts, log lines, and timings at each step, tied to the source line responsible. It is a snapshot, not a live view; open it in VS Code: right-click the file and choose **Open in Integrated Browser**.
 - `backend/pyproject.toml` lists the Python packages; `backend/uv.lock` fixes their resolved versions.
 
-FastAPI's [multiple-file guide](https://fastapi.tiangolo.com/tutorial/bigger-applications/) uses `APIRouter` and `include_router()` for this split. That mechanism is from FastAPI. The folder names `routes/` and `schemas/` are our organizational choice; FastAPI's guide calls the route folder `routers/` and does not require a separate `schemas/` folder. `call_qwen_server.py` sits beside `main.py` because it is the only outgoing service call so far.
+FastAPI's [multiple-file guide](https://fastapi.tiangolo.com/tutorial/bigger-applications/) uses `APIRouter` and `include_router()` for this split. That mechanism is from FastAPI. The folder names `routes/` and `schemas/` are our organizational choice; FastAPI's guide calls the route folder `routers/` and does not require a separate `schemas/` folder. `call_model_server.py` sits beside `main.py` because it is the only outgoing service call so far.
 
-For a question, the browser sends `{"message": "hi"}`. FastAPI builds a `ChatRequest` object and calls `answer_question()` in `routes/chat.py`. That function checks the text and passes a plain Python string to `get_qwen_answer()` in `call_qwen_server.py`. HTTPX sends a separate request to vLLM; `get_qwen_answer()` returns the answer string. The route puts it in `ChatResponse`, which FastAPI sends as `{"answer": "..."}`. No step in that path saves the message.
+For a question, the browser sends `{"message": "hi"}`. FastAPI builds a `ChatRequest` object and calls `answer_question()` in `routes/chat.py`. That function checks the text and passes a plain Python string to `get_model_answer()` in `call_model_server.py`. HTTPX sends a separate request to vLLM; `get_model_answer()` returns the reply's `content` string. The route puts it in `ChatResponse`, which FastAPI sends as `{"content": "..."}`. No step in that path saves the message.
 
 The page has a New chat button and a disabled Log in button. The sidebar says that history comes later. Each send includes **only the current question**, so Qwen cannot use earlier messages as context yet. Messages remain visible in the open page, but nothing is saved; New chat or a refresh clears that display. The complete answer appears when Qwen finishes.
 

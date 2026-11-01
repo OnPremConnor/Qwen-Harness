@@ -105,9 +105,9 @@
           body: JSON.stringify({ message: question }),
         })
         // Throwing here moves a failed HTTP response into the catch block below.
-        if (!response.ok) throw new Error('Qwen could not complete the reply')
+        if (!response.ok) throw new Error('The model could not complete the reply')
         const result = await response.json()
-        note.textContent = result.answer
+        note.textContent = result.content
         input.value = ''
       } catch (error) {
         // A failed send leaves the question in the text box so it can be retried.
