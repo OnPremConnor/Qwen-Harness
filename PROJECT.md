@@ -44,18 +44,19 @@ Use real course and code-learning tasks. Check source accuracy, whether an expla
 
 ## Current foundation and next slice
 
-Today the repository has a local text-only page, a FastAPI backend, and a client for separately served vLLM. Each question is an independent model request. The page displays the exchanges while it stays open but saves nothing; its history sidebar is a placeholder and its login button is disabled. PostgreSQL is installed on the host but unused by this app. The upload and retrieval prototype was removed because it skipped ahead of Connor's current learning path. This is a working request path, not yet a conversational or measured learning product.
+Today the repository has a local text-only page, a FastAPI backend, and a client for separately served vLLM that logs one JSON record per call. Each question is an independent model request. The page displays the exchanges while it stays open but saves nothing; its history sidebar is a placeholder and its login button is disabled. PostgreSQL is installed on the host but unused by this app. The upload and retrieval prototype was removed because it skipped ahead of Connor's current learning path. This is a working request path, not yet a conversational or measured learning product.
 
 The next learning step is to trace the current path: browser → FastAPI → local model → browser. Connor will then build conversation context and durable history deliberately, learning what is held in a running page, what is sent in a request, and what a database actually saves. That foundation comes before course ingestion, generated visuals, or background agent workflows.
 
 ## Near-term build and learning path
 
 1. **Trace the clean request path.** Connor follows one question from the page through FastAPI and the vLLM HTTP request to the displayed answer. The current request has no earlier messages.
-2. **Build conversations deliberately.** Learn how sending earlier user and assistant messages changes Qwen's next reply. Choose where active conversation state belongs before adding it to the code.
-3. **Learn PostgreSQL and add history.** Inspect the installed server together, design simple conversation and message tables, create them explicitly, then add the Python client and read/write path. Only then make the sidebar list and reopen saved chats.
-4. **Login and ownership.** Add a minimal user account, password verification, and a server-side login session. Tie each conversation to its owner, and check ownership on every conversation read and chat write. Start with local accounts; remote access comes only after this boundary works. A login screen by itself does not protect chat data.
-5. **First LangGraph lesson.** Put the model call in a small graph and inspect the state entering and leaving each step. Add one purposeful step and compare it with the plain chat path. Only add specialist agents when a real task needs different roles or context.
-6. **Learning features.** Add a small learner-evidence loop, then bring back uploads, retrieval, transcription, visuals, and background review as separate features when we can explain and evaluate each one. Preserve the broader vision above while changing the order to match what Connor is ready to build.
+2. **Record what happens.** Each model call already writes one JSON log record (timings, sizes, token counts, no text). Add failure logging, request settings, a request id, and a log file one slice at a time, so later steps can be measured instead of guessed.
+3. **Build conversations deliberately.** Learn how sending earlier user and assistant messages changes Qwen's next reply. Choose where active conversation state belongs before adding it to the code.
+4. **Learn PostgreSQL and add history.** Inspect the installed server together, design simple conversation and message tables, create them explicitly, then add the Python client and read/write path. Only then make the sidebar list and reopen saved chats.
+5. **Login and ownership.** Add a minimal user account, password verification, and a server-side login session. Tie each conversation to its owner, and check ownership on every conversation read and chat write. Start with local accounts; remote access comes only after this boundary works. A login screen by itself does not protect chat data.
+6. **First LangGraph lesson.** Put the model call in a small graph and inspect the state entering and leaving each step. Add one purposeful step and compare it with the plain chat path. Only add specialist agents when a real task needs different roles or context.
+7. **Learning features.** Add a small learner-evidence loop, then bring back uploads, retrieval, transcription, visuals, and background review as separate features when we can explain and evaluate each one. Preserve the broader vision above while changing the order to match what Connor is ready to build.
 
 ## Design questions to answer through use
 
