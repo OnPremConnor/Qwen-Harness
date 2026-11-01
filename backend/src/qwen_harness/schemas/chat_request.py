@@ -4,5 +4,5 @@ from pydantic import BaseModel
 
 
 class ChatRequest(BaseModel):
-    # FastAPI uses this field name to read {"message": "..."} from the browser.
-    message: str
+    # FastAPI uses this field name to read {"content": "..."} from the browser.
+    content: str

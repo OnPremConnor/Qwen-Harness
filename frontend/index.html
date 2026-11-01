@@ -102,7 +102,7 @@
         const response = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: question }),
+          body: JSON.stringify({ content: question }),
         })
         // Throwing here moves a failed HTTP response into the catch block below.
         if (!response.ok) throw new Error('The model could not complete the reply')
