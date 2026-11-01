@@ -62,7 +62,7 @@
 <div class="page">
   <p class="eyebrow">Qwen Harness · one real request</p>
   <h1>One real question, hop by hop</h1>
-  <p class="lead">Steps 1 to 6 were recorded at 23:34 (Eastern time) on 2026-10-31, after the code was renamed to <code>call_model_server.py</code>, <code>get_model_answer()</code> and <code>content</code>. Every block there came from that run, not from an example. The timing section also uses two earlier runs from 21:26, recorded before the rename. A cold start cannot be repeated without restarting the model, so that evidence is kept.</p>
+  <p class="lead">A snapshot of the code at commit <code>e9abddb</code>. Steps 1 to 6 were recorded at 00:05 on 2026-11-01 (Eastern time) with that code, where the browser key, vLLM's reply and the Python reply variables all use the name <code>content</code>. Every block there came from that run, not from an example. The timing section also uses two earlier runs from 21:26 on 2026-10-31, recorded before the renames. A cold start cannot be repeated without restarting the model, so that evidence is kept. When the code changes, the line numbers on this page stop matching it; <code>git show e9abddb:&lt;path&gt;</code> prints the exact code this page describes.</p>
 
   <div class="box">
     <strong>Question sent:</strong> <code>In one sentence, what is a hash map?</code>
@@ -86,18 +86,18 @@ Accept: */*
 Content-Type: application/json
 Content-Length: 50
 
-{&quot;message&quot;:&quot;In one sentence, what is a hash map?&quot;}</code></pre>
+{&quot;content&quot;:&quot;In one sentence, what is a hash map?&quot;}</code></pre>
     <p class="notice">The browser sends only the newest question. Nothing from earlier messages is in this body, which is why a follow-up cannot work yet.</p>
   </section>
 
   <!-- HOP 2 -->
   <section class="hop">
     <div class="hop-head"><span class="num">2</span><h2>Inside FastAPI: JSON becomes Python objects</h2><span class="size">no network traffic</span></div>
-    <p class="ref"><code>schemas/chat_request.py</code> line 8 (<code>message: str</code>), then <code>routes/chat.py</code> lines 14–21.</p>
+    <p class="ref"><code>schemas/chat_request.py</code> line 8 (<code>content: str</code>), then <code>routes/chat.py</code> lines 14–21.</p>
     <pre><code>request          →  a ChatRequest object FastAPI built from the JSON
-request.message  →  "In one sentence, what is a hash map?"
-message = request.message.strip()   # routes/chat.py line 16</code></pre>
-    <p class="notice"><strong>Python detail you practiced:</strong> <code>request.message</code> has no parentheses, so it is an <em>attribute</em>, a value stored on the object. <code>.strip()</code> has parentheses, so it is a <em>method</em>, and Python passes the string in front of the dot in as <code>self</code>. <code>request.message.strip()</code> does the same work as <code>str.strip(request.message)</code>. Here <code>strip()</code> removed nothing, because the question had no extra spaces.</p>
+request.content  →  "In one sentence, what is a hash map?"
+question = request.content.strip()   # routes/chat.py line 16</code></pre>
+    <p class="notice"><strong>Python detail you practiced:</strong> <code>request.content</code> has no parentheses, so it is an <em>attribute</em>, a value stored on the object. <code>.strip()</code> has parentheses, so it is a <em>method</em>, and Python passes the string in front of the dot in as <code>self</code>. <code>request.content.strip()</code> does the same work as <code>str.strip(request.content)</code>. Here <code>strip()</code> removed nothing, because the question had no extra spaces. The result is stored in <code>question</code>, not <code>content</code>, because this same function later holds the model's reply in a variable named <code>content</code> (line 25), and one variable cannot hold both texts.</p>
   </section>
 
   <!-- HOP 3 -->
@@ -120,35 +120,35 @@ content-type: application/json
 
   <!-- HOP 4 -->
   <section class="hop">
-    <div class="hop-head"><span class="num">4</span><h2>vLLM → FastAPI: what came back</h2><span class="size">1,080 bytes (response body)</span></div>
+    <div class="hop-head"><span class="num">4</span><h2>vLLM → FastAPI: what came back</h2><span class="size">1,183 bytes (response body)</span></div>
     <p class="ref">Status <code>200 OK</code>. The reply below is trimmed for reading; the full body is under the arrow.</p>
     <div class="legend"><span><i style="background:var(--read)"></i>read by the code</span><span><i style="background:var(--ignored)"></i>never read by the code</span></div>
-    <pre><code><span class="ln ">{</span><span class="ln ignored">  &quot;id&quot;: &quot;chatcmpl-ae00ab1ebc9a36c8&quot;,</span><span class="ln ignored">  &quot;model&quot;: &quot;qwen3.8-27b-fp8&quot;,</span><span class="ln ">  &quot;choices&quot;: [</span><span class="ln ">    {</span><span class="ln ">      &quot;message&quot;: {</span><span class="ln ignored">        &quot;role&quot;: &quot;assistant&quot;,</span><span class="ln read">        &quot;content&quot;: &quot;\n\nA hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.&quot;,</span><span class="ln ignored">        &quot;reasoning&quot;: &quot;The user wants a one-sentence definition of a hash map. I need to be concise and accurate, covering the key idea: it&#x27;s a data structure that uses a hash function to map keys to values for fast lookup.\n&quot;</span><span class="ln ">      },</span><span class="ln ignored">      &quot;finish_reason&quot;: &quot;stop&quot;</span><span class="ln ">    }</span><span class="ln ">  ],</span><span class="ln ignored">  &quot;usage&quot;: {</span><span class="ln ignored">    &quot;prompt_tokens&quot;: 50,</span><span class="ln ignored">    &quot;completion_tokens&quot;: 83,</span><span class="ln ignored">    &quot;total_tokens&quot;: 133,</span><span class="ln ignored">    &quot;completion_tokens_details&quot;: {&quot;reasoning_tokens&quot;: 46}</span><span class="ln ignored">  },</span><span class="ln ignored">  … 10 more top-level fields: object, created, service_tier, system_fingerprint, prompt_logprobs, prompt_token_ids, prompt_text, kv_transfer_params, ec_transfer_params, metrics</span><span class="ln ">}</span></code></pre>
-    <p class="notice">The code reads exactly one field: <code>choices[0].message.content</code> (<code>call_model_server.py</code> line 31). Qwen also returned its thinking in <code>reasoning</code>, and the counts in <code>usage</code>: 50 tokens (prompt) + 83 tokens (completion) = 133 tokens (total). Of the completion, 46 tokens (thinking) were used before the answer, so 83 − 46 = 37 tokens (answer text).</p>
+    <pre><code><span class="ln ">{</span><span class="ln ignored">  &quot;id&quot;: &quot;chatcmpl-9ad61b331eb8988f&quot;,</span><span class="ln ignored">  &quot;model&quot;: &quot;qwen3.8-27b-fp8&quot;,</span><span class="ln ">  &quot;choices&quot;: [</span><span class="ln ">    {</span><span class="ln ">      &quot;message&quot;: {</span><span class="ln ignored">        &quot;role&quot;: &quot;assistant&quot;,</span><span class="ln read">        &quot;content&quot;: &quot;\n\nA hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.&quot;,</span><span class="ln ignored">        &quot;reasoning&quot;: &quot;The user wants a one-sentence definition of a hash map. Let me think about what captures the essence concisely: it&#x27;s a data structure that maps keys to values using a hash function to determine where to store and retrieve them, enabling fast lookup. I need to be precise but brief.\n&quot;</span><span class="ln ">      },</span><span class="ln ignored">      &quot;finish_reason&quot;: &quot;stop&quot;</span><span class="ln ">    }</span><span class="ln ">  ],</span><span class="ln ignored">  &quot;usage&quot;: {</span><span class="ln ignored">    &quot;prompt_tokens&quot;: 50,</span><span class="ln ignored">    &quot;completion_tokens&quot;: 105,</span><span class="ln ignored">    &quot;total_tokens&quot;: 155,</span><span class="ln ignored">    &quot;completion_tokens_details&quot;: {&quot;reasoning_tokens&quot;: 61}</span><span class="ln ignored">  },</span><span class="ln ignored">  … 10 more top-level fields: object, created, service_tier, system_fingerprint, prompt_logprobs, prompt_token_ids, prompt_text, kv_transfer_params, ec_transfer_params, metrics</span><span class="ln ">}</span></code></pre>
+    <p class="notice">The code reads exactly one field: <code>choices[0].message.content</code> (<code>call_model_server.py</code> line 31). Qwen also returned its thinking in <code>reasoning</code>, and the counts in <code>usage</code>: 50 tokens (prompt) + 105 tokens (completion) = 155 tokens (total). Of the completion, 61 tokens (thinking) were used before the answer, so 105 − 61 = 44 tokens (answer text).</p>
     <details><summary>Show the full response body and headers</summary>
       <div class="label">Headers</div>
       <pre><code>HTTP/1.1 200 OK
-date: Sun, 01 Nov 2026 03:34:30 GMT
+date: Sun, 01 Nov 2026 04:05:40 GMT
 server: uvicorn
-content-length: 1080
+content-length: 1183
 content-type: application/json</code></pre>
       <div class="label">Body</div>
       <pre><code>{
-  &quot;id&quot;: &quot;chatcmpl-ae00ab1ebc9a36c8&quot;,
+  &quot;id&quot;: &quot;chatcmpl-9ad61b331eb8988f&quot;,
   &quot;object&quot;: &quot;chat.completion&quot;,
-  &quot;created&quot;: 1793504070,
+  &quot;created&quot;: 1793505940,
   &quot;model&quot;: &quot;qwen3.8-27b-fp8&quot;,
   &quot;choices&quot;: [
     {
       &quot;index&quot;: 0,
       &quot;message&quot;: {
         &quot;role&quot;: &quot;assistant&quot;,
-        &quot;content&quot;: &quot;\n\nA hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.&quot;,
+        &quot;content&quot;: &quot;\n\nA hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.&quot;,
         &quot;refusal&quot;: null,
         &quot;annotations&quot;: null,
         &quot;audio&quot;: null,
         &quot;function_call&quot;: null,
-        &quot;reasoning&quot;: &quot;The user wants a one-sentence definition of a hash map. I need to be concise and accurate, covering the key idea: it&#x27;s a data structure that uses a hash function to map keys to values for fast lookup.\n&quot;
+        &quot;reasoning&quot;: &quot;The user wants a one-sentence definition of a hash map. Let me think about what captures the essence concisely: it&#x27;s a data structure that maps keys to values using a hash function to determine where to store and retrieve them, enabling fast lookup. I need to be precise but brief.\n&quot;
       },
       &quot;logprobs&quot;: null,
       &quot;finish_reason&quot;: &quot;stop&quot;,
@@ -161,11 +161,11 @@ content-type: application/json</code></pre>
   &quot;system_fingerprint&quot;: &quot;vllm-0.28.0-4faabed8&quot;,
   &quot;usage&quot;: {
     &quot;prompt_tokens&quot;: 50,
-    &quot;total_tokens&quot;: 133,
-    &quot;completion_tokens&quot;: 83,
+    &quot;total_tokens&quot;: 155,
+    &quot;completion_tokens&quot;: 105,
     &quot;prompt_tokens_details&quot;: null,
     &quot;completion_tokens_details&quot;: {
-      &quot;reasoning_tokens&quot;: 46
+      &quot;reasoning_tokens&quot;: 61
     }
   },
   &quot;prompt_logprobs&quot;: null,
@@ -183,9 +183,9 @@ content-type: application/json</code></pre>
     <div class="hop-head"><span class="num">5</span><h2>Inside <code>get_model_answer()</code>: pick one field and clean it</h2><span class="size">2 characters removed</span></div>
     <p class="ref"><code>call_model_server.py</code> lines 29–40.</p>
     <div class="label">What <code>content</code> actually held (JSON escapes, <code>\n</code> = a newline character)</div>
-    <pre><code>&quot;\n\nA hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.&quot;</code></pre>
+    <pre><code>&quot;\n\nA hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.&quot;</code></pre>
     <div class="label">What <code>content.strip()</code> returned (line 40)</div>
-    <pre><code>A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.</code></pre>
+    <pre><code>A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.</code></pre>
     <p class="notice">This is the real reason for <code>.strip()</code>: the model's text started with 2 newline characters (the <code>\n\n</code> at the front). Why the model starts that way is not explained by this capture; a likely cause is the blank line it writes after its thinking, but I did not verify that.</p>
     <div class="label">Walk the real object one bracket at a time (the real captured reply, run with the harness's own Python)</div>
     <pre><code>&gt;&gt;&gt; data = json.loads(reply_text)
@@ -204,22 +204,22 @@ content-type: application/json</code></pre>
 &gt;&gt;&gt; type(data[&quot;choices&quot;][0][&quot;message&quot;][&quot;content&quot;])
 &lt;class &#x27;str&#x27;&gt;
 &gt;&gt;&gt; data[&quot;choices&quot;][0][&quot;message&quot;][&quot;content&quot;]
-&#x27;\n\nA hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computin …</code></pre>
+&#x27;\n\nA hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O …</code></pre>
     <p class="notice">Each bracket does exactly one lookup. <code>["choices"]</code> looks up a key in a dictionary and gives back a <em>list</em> holding 1 item. <code>[0]</code> takes position 0 of that list (counting starts at 0) and gives back another dictionary. <code>["message"]</code> and <code>["content"]</code> are two more key lookups. The last lines show the answer to a natural question: what comes out is a plain <code>str</code> (a string). It is only the text. The word <code>"content"</code> was the label used to find it, and the string does not carry that label with it. That is why step 6 has to give the text a key again: the field name in the class.</p>
   </section>
 
   <!-- HOP 6 -->
   <section class="hop">
-    <div class="hop-head"><span class="num">6</span><h2>FastAPI → Browser</h2><span class="size">183 bytes (response body)</span></div>
+    <div class="hop-head"><span class="num">6</span><h2>FastAPI → Browser</h2><span class="size">204 bytes (response body)</span></div>
     <p class="ref"><code>routes/chat.py</code> lines 25 and 31, <code>schemas/chat_response.py</code> line 8, then <code>frontend/index.html</code> lines 109–110 (<code>result.content</code>).</p>
     <div class="label">Response as received (recorded from curl)</div>
     <pre><code>HTTP/1.1 200 OK
-date: Sun, 01 Nov 2026 03:34:30 GMT
+date: Sun, 01 Nov 2026 04:05:39 GMT
 server: uvicorn
-content-length: 183
+content-length: 204
 content-type: application/json
 
-{&quot;content&quot;:&quot;A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.&quot;}</code></pre>
+{&quot;content&quot;:&quot;A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.&quot;}</code></pre>
     <p class="notice">Where did <code>"content":</code> in that body come from? Not from a variable. It comes from the class. The word <code>content</code> now appears in six places on this path, and each one has its own job:</p>
     <div class="table-wrap"><table style="min-width:0">
       <thead><tr><th>Spelling</th><th>Where</th><th>What it is</th></tr></thead>
@@ -237,43 +237,44 @@ content-type: application/json
     <pre><code>&gt;&gt;&gt; content = data[&quot;choices&quot;][0][&quot;message&quot;][&quot;content&quot;].strip()
 &gt;&gt;&gt; reply = ChatResponse(content=content)
 &gt;&gt;&gt; reply
-ChatResponse(content=&#x27;A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and del …
+ChatResponse(content=&#x27;A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, e …
 &gt;&gt;&gt; type(reply)
 &lt;class &#x27;qwen_harness.schemas.chat_response.ChatResponse&#x27;&gt;
 &gt;&gt;&gt; reply.content
-&#x27;A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an …
+&#x27;A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1)  …
 &gt;&gt;&gt; ChatResponse.model_fields
 {&#x27;content&#x27;: FieldInfo(annotation=str, required=True)}
 &gt;&gt;&gt; reply.model_dump_json()
-&#x27;{&quot;content&quot;:&quot;A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by  …
+&#x27;{&quot;content&quot;:&quot;A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling a …
 &gt;&gt;&gt; text = content
 &gt;&gt;&gt; ChatResponse(content=text).model_dump_json() == reply.model_dump_json()
 True
 &gt;&gt;&gt; ChatResponse(text=content)
 ValidationError: 1 validation error for ChatResponse
 content
-  Field required [type=missing, input_value={&#x27;text&#x27;: &#x27;A hash map is a...an index from the key.&#x27;}, input_type=dict]
+  Field required [type=missing, input_value={&#x27;text&#x27;: &#x27;A hash map is a... lookup, and deletion.&#x27;}, input_type=dict]
 &gt;&gt;&gt; ChatResponse(content=42)
 ValidationError: 1 validation error for ChatResponse
 content
   Input should be a valid string [type=string_type, input_value=42, input_type=int]
 &gt;&gt;&gt; ChatRequest.model_fields
-{&#x27;message&#x27;: FieldInfo(annotation=str, required=True)}</code></pre>
+{&#x27;content&#x27;: FieldInfo(annotation=str, required=True)}</code></pre>
     <p class="notice">Read it from the top. <code>ChatResponse.model_fields</code> is the class's own list of required fields, and its one dictionary key, <code>'content'</code>, is where the JSON key comes from. Giving the class <code>text</code> instead of <code>content</code> on the left fails with <code>Field required</code>, so the left name matters. Renaming the variable on the right to <code>text</code> gives identical JSON (the <code>==</code> line prints <code>True</code>), so the right name does not matter. Passing <code>42</code> fails with <code>Input should be a valid string</code>, so the type matters too.</p>
     <div class="label">The same rule on the way in (real replies from your running app on port 8001; no model was called)</div>
-    <pre><code>$ curl -X POST http://127.0.0.1:8001/chat -H 'Content-Type: application/json' -d '{"nope":"hi"}'
-{"detail":[{"type":"missing","loc":["body","message"],"msg":"Field required","input":{"nope":"hi"}}]}
+    <pre><code>$ curl -X POST http://127.0.0.1:8001/chat -H &#x27;Content-Type: application/json&#x27; -d &#x27;{&quot;nope&quot;:&quot;hi&quot;}&#x27;
+{&quot;detail&quot;:[{&quot;type&quot;:&quot;missing&quot;,&quot;loc&quot;:[&quot;body&quot;,&quot;content&quot;],&quot;msg&quot;:&quot;Field required&quot;,&quot;input&quot;:{&quot;nope&quot;:&quot;hi&quot;}}]}
 HTTP status: 422
 
-$ curl -X POST http://127.0.0.1:8001/chat -H 'Content-Type: application/json' -d '{"message":"   "}'
-{"detail":"The message must contain text"}
+$ curl -X POST http://127.0.0.1:8001/chat -H &#x27;Content-Type: application/json&#x27; -d &#x27;{&quot;content&quot;:&quot;   &quot;}&#x27;
+{&quot;detail&quot;:&quot;The content must contain text&quot;}
 HTTP status: 422</code></pre>
-    <p class="notice">Both replies are HTTP status 422, but they come from two different places. The first is the <code>ChatRequest</code> class rejecting a body without the key <code>message</code>, before <code>answer_question()</code> even starts. The second is your own <code>if not message:</code> and <code>raise HTTPException(status_code=422, …)</code> at <code>routes/chat.py</code> lines 19–21, which runs only after the class accepted the body. This is how the keyword <code>raise</code> changes what the whole system does: it stops the function and becomes an HTTP error the browser sees.</p>
-    <div class="box"><strong>Why one name, <code>content</code>, from end to end (your decision, 2026-10-31)</strong>
+    <p class="notice">Both replies are HTTP status 422, but they come from two different places. The first is the <code>ChatRequest</code> class rejecting a body without the key <code>content</code> (see <code>"loc":["body","content"]</code>: the class's own field name), before <code>answer_question()</code> even starts. The second is your own <code>if not question:</code> and <code>raise HTTPException(status_code=422, …)</code> at <code>routes/chat.py</code> lines 19–21, which runs only after the class accepted the body. This is how the keyword <code>raise</code> changes what the whole system does: it stops the function and becomes an HTTP error the browser sees.</p>
+    <div class="box"><strong>Why one name, <code>content</code>, from end to end (your decisions, 2026-10-31 and 2026-11-01)</strong>
       <ul>
         <li><strong>The reason:</strong> you want to read the code against vLLM's own documentation and names, without keeping a glossary of names we invented.</li>
         <li><strong>The trade-off to know:</strong> the word no longer says which direction the text is travelling. The path in front of it does. <code>choices[0].message.content</code> is text coming <em>in</em> from the model. <code>ChatResponse(content=…)</code> and <code>result.content</code> are text going <em>out</em> to the browser. Read the path, not just the word.</li>
-        <li><strong>The request direction is still undecided:</strong> the browser's key is <code>message</code>, while vLLM's request key is <code>content</code>. Whether to rename that side too is a separate decision we have not made.</li>
+        <li><strong>Both directions use it:</strong> the browser sends <code>{"content": …}</code> in (<code>ChatRequest</code>) and receives <code>{"content": …}</code> back (<code>ChatResponse</code>), the same word vLLM uses in its own request and reply. Which class you are looking at says which way the text is going.</li>
+        <li><strong>One consequence:</strong> inside <code>answer_question()</code>, which handles both texts, the incoming text is named <code>question</code> and the reply is named <code>content</code>. Giving both the same variable name would make the reply overwrite the question.</li>
       </ul>
     </div>
   </section>
@@ -283,7 +284,7 @@ HTTP status: 422</code></pre>
     <p class="muted">The same question, three times. "Waiting for vLLM" is the time <code>httpx.post</code> took inside FastAPI. "Everything else" is the whole <code>curl</code> time minus that.</p>
 <div class="bar-row"><div class="bar-label"><span><strong>First request after startup</strong> <span class="muted">(cold start, recorded before the rename)</span></span><span>34.009 seconds (waiting for vLLM) + 0.027 seconds (everything else) = 34.036 seconds (curl total)</span></div><div class="track"><div class="fill-model" style="width:100.0%"></div><div class="fill-rest"></div></div><p class="muted">84 tokens (completion, of which 40 tokens were thinking) ÷ 34.009 seconds = 2.47 tokens per second (overall speed)</p></div>
 <div class="bar-row"><div class="bar-label"><span><strong>Second request, same question</strong> <span class="muted">(recorded before the rename)</span></span><span>6.784 seconds (waiting for vLLM) + 0.005 seconds (everything else) = 6.789 seconds (curl total)</span></div><div class="track"><div class="fill-model" style="width:19.9%"></div><div class="fill-rest"></div></div><p class="muted">112 tokens (completion, of which 64 tokens were thinking) ÷ 6.784 seconds = 16.51 tokens per second (overall speed)</p></div>
-<div class="bar-row"><div class="bar-label"><span><strong>Third request, same question</strong> <span class="muted">(the renamed app, recorded after the rename)</span></span><span>5.311 seconds (waiting for vLLM) + 0.010 seconds (everything else) = 5.321 seconds (curl total)</span></div><div class="track"><div class="fill-model" style="width:15.6%"></div><div class="fill-rest"></div></div><p class="muted">83 tokens (completion, of which 46 tokens were thinking) ÷ 5.311 seconds = 15.63 tokens per second (overall speed)</p></div>
+<div class="bar-row"><div class="bar-label"><span><strong>Third request, same question</strong> <span class="muted">(the current code, recorded after the renames)</span></span><span>7.925 seconds (waiting for vLLM) + 0.010 seconds (everything else) = 7.935 seconds (curl total)</span></div><div class="track"><div class="fill-model" style="width:23.3%"></div><div class="fill-rest"></div></div><p class="muted">105 tokens (completion, of which 61 tokens were thinking) ÷ 7.925 seconds = 13.25 tokens per second (overall speed)</p></div>
     <p class="notice">Everything except the model (FastAPI, JSON parsing and <code>curl</code>) took 0.005 to 0.027 seconds in the three runs. The model is where the time goes. The first request took 34.009 seconds (first) ÷ 6.784 seconds (second) = 5.01 (ratio, no unit) times as long as the second. I did not find out why the first request was slower. A candidate, <em>untested</em>, is one-time setup inside vLLM on its first request. A test would be to restart the container and time two identical requests in a row.</p>
   </div>
 
@@ -301,25 +302,25 @@ HTTP status: 422</code></pre>
     <tbody>
 <tr><td><code>input.value</code></td><td><code>frontend/index.html:90</code></td><td>the text box&#x27;s contents</td><td class='val'>In one sentence, what is a hash map?</td></tr>
 <tr><td><code>question</code></td><td><code>frontend/index.html:90</code></td><td>a JavaScript variable (trimmed copy)</td><td class='val'>In one sentence, what is a hash map?</td></tr>
-<tr><td><code>JSON.stringify({ message: question })</code></td><td><code>frontend/index.html:105</code></td><td>JSON text, 50 bytes (browser request body)</td><td class='val'>{&quot;message&quot;:&quot;In one sentence, what is a hash map?&quot;}</td></tr>
-<tr><td><code>request.message</code></td><td><code>routes/chat.py:16</code></td><td>an attribute of the ChatRequest object</td><td class='val'>In one sentence, what is a hash map?</td></tr>
-<tr><td><code>message</code></td><td><code>routes/chat.py:16</code></td><td>a Python variable, after .strip()</td><td class='val'>In one sentence, what is a hash map?</td></tr>
-<tr><td><code>question</code></td><td><code>call_model_server.py:13</code></td><td>a parameter: a different variable from the JavaScript one with the same spelling</td><td class='val'>In one sentence, what is a hash map?</td></tr>
+<tr><td><code>JSON.stringify({ content: question })</code></td><td><code>frontend/index.html:105</code></td><td>JSON text, 50 bytes (browser request body)</td><td class='val'>{&quot;content&quot;:&quot;In one sentence, what is a hash map?&quot;}</td></tr>
+<tr><td><code>request.content</code></td><td><code>routes/chat.py:16</code></td><td>an attribute of the ChatRequest object</td><td class='val'>In one sentence, what is a hash map?</td></tr>
+<tr><td><code>question</code></td><td><code>routes/chat.py:16</code></td><td>a Python variable, after .strip()</td><td class='val'>In one sentence, what is a hash map?</td></tr>
+<tr><td><code>question</code></td><td><code>call_model_server.py:13</code></td><td>a parameter of get_model_answer(): a separate variable from the two named question above, holding the same text</td><td class='val'>In one sentence, what is a hash map?</td></tr>
 <tr><td><code>&quot;messages&quot;: [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: …}]</code></td><td><code>call_model_server.py:19</code></td><td>JSON text, 145 bytes (FastAPI&#x27;s request body to vLLM)</td><td class='val'>In one sentence, what is a hash map?</td></tr>
-<tr><td><code>reply_data[&quot;choices&quot;][0][&quot;message&quot;][&quot;content&quot;]</code></td><td><code>call_model_server.py:31</code></td><td>NEW text: the model generated this, with 2 leading newline characters</td><td class='val'>&quot;\n\nA hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.&quot;</td></tr>
-<tr><td><code>content</code></td><td><code>call_model_server.py:31, then :40</code></td><td>a Python variable; .strip() removes the 2 newline characters on return</td><td class='val'>A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.</td></tr>
-<tr><td><code>content</code></td><td><code>routes/chat.py:25</code></td><td>a different variable: what get_model_answer() returned</td><td class='val'>A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.</td></tr>
-<tr><td><code>ChatResponse(content=content)</code></td><td><code>routes/chat.py:31</code></td><td>an object; FastAPI sends it as JSON text, 183 bytes</td><td class='val'>A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.</td></tr>
-<tr><td><code>result.content</code></td><td><code>frontend/index.html:110</code></td><td>a JavaScript property, shown in the page</td><td class='val'>A hash map is a data structure that uses a hash function to associate keys with values, enabling fast insertion, lookup, and deletion by computing an index from the key.</td></tr>
+<tr><td><code>reply_data[&quot;choices&quot;][0][&quot;message&quot;][&quot;content&quot;]</code></td><td><code>call_model_server.py:31</code></td><td>NEW text: the model generated this, with 2 leading newline characters</td><td class='val'>&quot;\n\nA hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.&quot;</td></tr>
+<tr><td><code>content</code></td><td><code>call_model_server.py:31, then :40</code></td><td>a Python variable; .strip() removes the 2 newline characters on return</td><td class='val'>A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.</td></tr>
+<tr><td><code>content</code></td><td><code>routes/chat.py:25</code></td><td>a different variable: what get_model_answer() returned</td><td class='val'>A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.</td></tr>
+<tr><td><code>ChatResponse(content=content)</code></td><td><code>routes/chat.py:31</code></td><td>an object; FastAPI sends it as JSON text, 204 bytes</td><td class='val'>A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.</td></tr>
+<tr><td><code>result.content</code></td><td><code>frontend/index.html:110</code></td><td>a JavaScript property, shown in the page</td><td class='val'>A hash map is a data structure that stores key-value pairs and uses a hash function to quickly compute an index into an array, enabling average O(1) time for insertion, lookup, and deletion.</td></tr>
     </tbody>
   </table></div>
 
   <h3>Log lines from both servers (real, step 1 to 6 run)</h3>
   <pre><code>FastAPI (Uvicorn, temporary copy on port 8002)
-INFO:     127.0.0.1:34528 - "POST /chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47036 - &quot;POST /chat HTTP/1.1&quot; 200 OK
 
 vLLM (docker logs qwen38-27b)
-INFO:     172.18.0.1:40358 - "POST /v1/chat/completions HTTP/1.1" 200 OK</code></pre>
+INFO:     172.18.0.1:35446 - &quot;POST /v1/chat/completions HTTP/1.1&quot; 200 OK</code></pre>
   <p class="muted">vLLM shows <code>172.18.0.1</code> instead of <code>127.0.0.1</code> because the request enters the container through Docker's network. <code>docker network inspect qwen38-27b_default</code> reports that address as the network's gateway (subnet 172.18.0.0/16), which is how the host appears from inside the container.</p>
 
   <h3>What this capture cannot prove</h3>
